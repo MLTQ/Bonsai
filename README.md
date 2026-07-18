@@ -50,6 +50,12 @@ being itself while training continues.
 - **Right-click** — regrow from seed, or quit
 - **🌱 menu bar item** — switch creature, regrow, reload weights, quit
 
+## Make your own creature
+
+The full guide — 2D, animated, mood-manifold, and volumetric, with real
+training numbers and a troubleshooting table earned the hard way — is at
+[docs/MAKE_YOUR_OWN_CREATURE.md](docs/MAKE_YOUR_OWN_CREATURE.md).
+
 ## Layout
 
 - `Sources/Bonsai/` — Swift app: transparent window shell + Metal NCA runtime
