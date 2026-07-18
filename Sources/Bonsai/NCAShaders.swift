@@ -96,7 +96,8 @@ func ncaMetalSource(cond: Int, hidden: Int = 128, useFilm: Bool = false) -> Stri
             float acc = b2[c];
             const device float *row = w2 + c * HIDDEN;
             for (int h = 0; h < HIDDEN; h++) acc += row[h] * hidden[h];
-            dst[base + c] = src[base + c] + (fire ? acc : 0.0f);
+            // +-8 state bound matches training; inert for healthy dynamics
+            dst[base + c] = clamp(src[base + c] + (fire ? acc : 0.0f), -8.0f, 8.0f);
         }
 
         if (u.damageActive != 0) {

@@ -63,12 +63,17 @@ class ManifoldNCA(nn.Module):
         h = self.w1(torch.cat([p, scmap], dim=1))
         gb = self.film(z)                                  # (B, 2*HIDDEN)
         gamma, beta = gb.chunk(2, dim=1)
+        # tanh-bounded gamma keeps the multiplicative gain in (0, 2) — unbounded FiLM
+        # amplifies activations until the state explodes (learned at iter 19500).
+        gamma = torch.tanh(gamma)
         h = F.relu(h * (1 + gamma[:, :, None, None]) + beta[:, :, None, None])
         dx = self.w2(h)
         fire = (torch.rand(x.shape[0], 1, *x.shape[2:], device=x.device) <= FIRE_RATE).float()
         x = x + dx * fire
         life = (pre_life & self.alive(x)).float()
-        return x * life
+        # Hard state bound: inert for healthy dynamics (|state| ~ 3), fatal-blowup-proof.
+        # Mirrored in the Metal shader (NCAShaders.swift).
+        return (x * life).clamp(-8.0, 8.0)
 
 
 def make_seed(n, device):
@@ -170,7 +175,11 @@ def main():
     corpus = Corpus(args.corpus, device)
     print(f"corpus: {corpus.n} cycles, device {device}", flush=True)
     model = ManifoldNCA().to(device)
-    opt = torch.optim.Adam(model.parameters(), lr=2e-3)
+    base_params = [p for n, p in model.named_parameters() if not n.startswith("film")]
+    opt = torch.optim.Adam([
+        {"params": base_params, "lr": 2e-3},
+        {"params": model.film.parameters(), "lr": 2e-4},  # the amplifier learns slowly
+    ])
     sched = torch.optim.lr_scheduler.MultiStepLR(opt, milestones=[20000, 40000], gamma=0.3)
 
     pool = make_seed(POOL_SIZE, device)
@@ -211,6 +220,12 @@ def main():
             if t in checkpoints:
                 loss = loss + checkpoints[t] * ((x[:, :4] - corpus.target_at(zidx, theta)) ** 2).mean()
 
+        if not torch.isfinite(loss):
+            # Never step on, or pool, an exploded batch — NaN in the pool is contagious.
+            print(f"iter {it}: non-finite loss, batch discarded", flush=True)
+            opt.zero_grad()
+            continue
+
         opt.zero_grad()
         loss.backward()
         for p in model.parameters():
@@ -220,10 +235,11 @@ def main():
         sched.step()
 
         with torch.no_grad():
-            slots = idx[order_cpu]
-            pool[slots] = x.detach()
-            pool_theta[slots] = theta % (2 * np.pi)
-            pool_zidx[slots] = zidx
+            finite = torch.isfinite(x).flatten(1).all(dim=1).cpu()
+            slots = idx[order_cpu][finite]
+            pool[slots] = x.detach()[finite.to(x.device)]
+            pool_theta[slots] = (theta % (2 * np.pi))[finite.to(x.device)]
+            pool_zidx[slots] = zidx[finite]
 
         if it % 100 == 0:
             rate = it / (time.time() - t0)
@@ -231,6 +247,8 @@ def main():
         if it % 2000 == 0 or it == args.iters:
             export(model, args.out)
             save_preview(model, device, "manifold_preview.png")
+        if it % 10000 == 0:
+            export(model, f"{args.out}.it{it}")  # versioned — never lose a good checkpoint again
 
 
 if __name__ == "__main__":

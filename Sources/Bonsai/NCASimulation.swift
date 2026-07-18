@@ -123,7 +123,8 @@ final class NCASimulation {
             var acc = filmMatrix[biasBase + row]
             let rowBase = row * zdim
             for j in 0..<zdim { acc += filmMatrix[rowBase + j] * zCurrent[j] }
-            ptr[row] = acc
+            // gamma rows (first half) are tanh-bounded, matching train_manifold.py
+            ptr[row] = row < hiddenCount ? tanhf(acc) : acc
         }
     }
 
