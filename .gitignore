@@ -1,0 +1,5 @@
+.build/
+.DS_Store
+training/train.log
+training/*_preview.png
+__pycache__/

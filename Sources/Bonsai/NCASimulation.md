@@ -1,0 +1,34 @@
+# NCASimulation.swift
+
+## Purpose
+GPU runtime for the neural cellular automaton: owns Metal state buffers, the weights buffer, and the three compute pipelines (step, life-mask, render). The single source of truth for the pet's living state.
+
+## Components
+
+### `NCASimulation`
+- **Does**: Holds grid state and advances the automaton; renders into drawable textures
+- **Interacts with**: `NCAWeights` (weight data), `ncaMetalSource` in `NCAShaders.swift` (compiled at init)
+- **Rationale**: Three-buffer rotation (`cur`/`tmp`/`next`) because the life mask reads pre- and post-update alpha from neighbors — writing in place would race across GPU threads
+
+### `step(count:renderInto:)`
+- **Does**: Encodes N automaton steps (+optional render) in one command buffer
+- **Rationale**: Encoders in one command buffer execute serially on the GPU, so multiple steps per frame are cheap
+
+### `reseed` / `damage(atGridX:gridY:radius:)` / `updateWeights`
+- **Does**: Plant a fresh seed cell / queue a circular wound (applied next step) / hot-swap weights
+- **Interacts with**: Called by `PetView` (interactions) and `AppDelegate` (menu, weights watcher)
+
+### `readRGBA`
+- **Does**: Sync copy of visible channels off the GPU
+- **Interacts with**: `RenderTest` only
+
+## Contracts
+
+| Dependent | Expects | Breaking changes |
+|-----------|---------|------------------|
+| `PetView.swift` | `step(count:renderInto:)`, `damage`, `reseed`, `device`, `gridWidth/Height` | Signatures; must stay main-thread-callable |
+| `AppDelegate.swift` | failable `init(device:weights:...)`, `updateWeights` | Init signature |
+| `RenderTest.swift` | `readRGBA()` returns row-major RGBA floats | Channel order/layout |
+
+## Notes
+- `Uniforms` uses only 4-byte fields in declaration order so the Swift struct layout matches Metal's without manual padding. Keep it that way (no SIMD types).

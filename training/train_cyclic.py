@@ -1,0 +1,201 @@
+"""Trains a phase-conditioned cyclic NCA: an automaton whose target is a MOVING
+point on a closed loop through sprite-space (an animation cycle), not a fixed image.
+
+Conditioning channels appended to the perception vector: (sin th, cos th, behavior).
+The phase th advances OMEGA per step *during* training rollouts, so the network
+learns to track continuous motion — coherent animation, not frame lookup. Behavior
+is re-rolled mid-life on some samples so still<->talking transitions are trained.
+
+Exports NCA2 format: like NCA1 plus an int32 cond-channel count in the header.
+
+Usage: python3 train_cyclic.py [--iters 12000] [--out ../weights/lain.nca]
+"""
+
+import argparse
+import time
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+from lain import BEHAVIORS, FRAMES, GRID, make_frames
+
+CH = 16
+HIDDEN = 128
+COND = 3            # sin(theta), cos(theta), behavior flag
+FIRE_RATE = 0.5
+OMEGA = 2 * np.pi / 240.0   # one animation cycle = 240 automaton steps
+POOL_SIZE = 1024
+BATCH = 8
+DAMAGE_N = 2
+SWITCH_P = 0.15     # chance a live sample's behavior is re-rolled (transition training)
+
+
+class CyclicNCA(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.w1 = nn.Conv2d(CH * 3 + COND, HIDDEN, 1)
+        self.w2 = nn.Conv2d(HIDDEN, CH, 1)
+        nn.init.zeros_(self.w2.weight)
+        nn.init.zeros_(self.w2.bias)
+        ident = torch.tensor([[0, 0, 0], [0, 1, 0], [0, 0, 0]], dtype=torch.float32)
+        sx = torch.tensor([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], dtype=torch.float32) / 8.0
+        sy = sx.T.contiguous()
+        kernels = torch.stack([ident, sx, sy]).repeat(CH, 1, 1).unsqueeze(1)
+        self.register_buffer("percept_w", kernels)
+
+    def alive(self, x):
+        return F.max_pool2d(x[:, 3:4], 3, stride=1, padding=1) > 0.1
+
+    def forward(self, x, cond):
+        """cond: (B, COND) — broadcast to every cell, appended after perception."""
+        pre_life = self.alive(x)
+        p = F.conv2d(x, self.percept_w, padding=1, groups=CH)
+        cmap = cond[:, :, None, None].expand(-1, -1, x.shape[2], x.shape[3])
+        dx = self.w2(F.relu(self.w1(torch.cat([p, cmap], dim=1))))
+        fire = (torch.rand(x.shape[0], 1, *x.shape[2:], device=x.device) <= FIRE_RATE).float()
+        x = x + dx * fire
+        life = (pre_life & self.alive(x)).float()
+        return x * life
+
+
+def cond_for(thetas, behaviors):
+    return torch.stack([torch.sin(thetas), torch.cos(thetas), behaviors.float()], dim=1)
+
+
+def target_at(frames_t, behaviors, thetas):
+    """Phase-lerped target: frames are 12 points on the cycle; theta lands between them."""
+    pos = (thetas / (2 * np.pi) * FRAMES) % FRAMES
+    f0 = pos.long() % FRAMES
+    f1 = (f0 + 1) % FRAMES
+    w = (pos - pos.floor())[:, None, None, None]
+    return frames_t[behaviors, f0] * (1 - w) + frames_t[behaviors, f1] * w
+
+
+def make_seed(n, device):
+    x = torch.zeros(n, CH, GRID, GRID, device=device)
+    x[:, 3:, GRID // 2, GRID // 2] = 1.0
+    return x
+
+
+def damage(x):
+    n, _, h, w = x.shape
+    yy, xx = torch.meshgrid(
+        torch.arange(h, device=x.device), torch.arange(w, device=x.device), indexing="ij"
+    )
+    for i in range(n):
+        r = np.random.uniform(5, 12)
+        cx = np.random.uniform(w * 0.3, w * 0.7)
+        cy = np.random.uniform(h * 0.3, h * 0.7)
+        x[i] *= (((xx - cx) ** 2 + (yy - cy) ** 2) > r ** 2).float()
+    return x
+
+
+def export(model, path):
+    with open(path, "wb") as f:
+        f.write(b"NCA2")
+        np.array([CH, HIDDEN, COND], dtype="<i4").tofile(f)
+        np.array([FIRE_RATE], dtype="<f4").tofile(f)
+        model.w1.weight.detach().cpu().numpy().reshape(HIDDEN, CH * 3 + COND).astype("<f4").tofile(f)
+        model.w1.bias.detach().cpu().numpy().astype("<f4").tofile(f)
+        model.w2.weight.detach().cpu().numpy().reshape(CH, HIDDEN).astype("<f4").tofile(f)
+        model.w2.bias.detach().cpu().numpy().astype("<f4").tofile(f)
+
+
+def save_preview(model, frames_t, device, path):
+    """Grow while the phase runs, then snapshot one full cycle: 12 talk frames."""
+    from PIL import Image
+
+    with torch.no_grad():
+        x = make_seed(1, device)
+        theta = torch.zeros(1, device=device)
+        b = torch.ones(1, dtype=torch.long, device=device)
+        for _ in range(300):
+            x = model(x, cond_for(theta, b))
+            theta += OMEGA
+        shots = []
+        for _ in range(FRAMES):
+            for _ in range(240 // FRAMES):
+                x = model(x, cond_for(theta, b))
+                theta += OMEGA
+            shots.append(x[0, :4].permute(1, 2, 0).cpu().numpy())
+    sheet = np.concatenate(shots, axis=1)
+    img = (np.clip(sheet, 0, 1) * 255).astype(np.uint8)
+    Image.fromarray(img, "RGBA").resize((FRAMES * GRID * 2, GRID * 2), Image.NEAREST).save(path)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--iters", type=int, default=12000)
+    ap.add_argument("--out", default="../weights/lain.nca")
+    ap.add_argument("--device", default="mps" if torch.backends.mps.is_available() else "cpu")
+    args = ap.parse_args()
+
+    device = torch.device(args.device)
+    torch.manual_seed(0)
+    np.random.seed(0)
+
+    frames_t = torch.from_numpy(make_frames()).permute(0, 1, 4, 2, 3).to(device)  # (B,F,4,H,W)
+    model = CyclicNCA().to(device)
+    opt = torch.optim.Adam(model.parameters(), lr=2e-3)
+    sched = torch.optim.lr_scheduler.MultiStepLR(opt, milestones=[4000], gamma=0.1)
+
+    pool = make_seed(POOL_SIZE, device)
+    pool_theta = torch.rand(POOL_SIZE, device=device) * 2 * np.pi
+    pool_beh = torch.randint(0, BEHAVIORS, (POOL_SIZE,), device=device)
+    t0 = time.time()
+
+    for it in range(1, args.iters + 1):
+        idx = torch.randint(0, POOL_SIZE, (BATCH,))
+        x = pool[idx].clone()
+        theta = pool_theta[idx].clone()
+        beh = pool_beh[idx].clone()
+
+        with torch.no_grad():
+            losses = ((x[:, :4] - target_at(frames_t, beh, theta)) ** 2).mean(dim=(1, 2, 3))
+            order = losses.argsort(descending=True)
+            x, theta, beh = x[order], theta[order], beh[order]
+            x[0] = make_seed(1, device)[0]
+            theta[0] = torch.rand(1, device=device) * 2 * np.pi
+            beh[0] = torch.randint(0, BEHAVIORS, (1,), device=device)
+            switch = torch.rand(BATCH, device=device) < SWITCH_P
+            switch[0] = False
+            beh[switch] = 1 - beh[switch]          # mid-life behavior flip
+            if it > 500:
+                x[-DAMAGE_N:] = damage(x[-DAMAGE_N:])
+
+        T = np.random.randint(48, 81)
+        loss = torch.zeros((), device=device)
+        checkpoints = {T - 24: 0.5, T - 12: 0.75, T - 1: 1.0}
+        for t in range(T):
+            x = model(x, cond_for(theta, beh))
+            theta = theta + OMEGA
+            if t in checkpoints:
+                tgt = target_at(frames_t, beh, theta)
+                loss = loss + checkpoints[t] * ((x[:, :4] - tgt) ** 2).mean()
+
+        opt.zero_grad()
+        loss.backward()
+        for p in model.parameters():
+            if p.grad is not None:
+                p.grad /= p.grad.norm() + 1e-8
+        opt.step()
+        sched.step()
+
+        with torch.no_grad():
+            pool[idx[order.cpu()]] = x.detach()
+            pool_theta[idx[order.cpu()]] = theta % (2 * np.pi)
+            pool_beh[idx[order.cpu()]] = beh
+
+        if it % 50 == 0:
+            rate = it / (time.time() - t0)
+            print(f"iter {it:5d}  loss {loss.item():.5f}  {rate:.2f} it/s", flush=True)
+        if it % 250 == 0 or it == args.iters:
+            export(model, args.out)
+            save_preview(model, frames_t, device, "cyclic_preview.png")
+            print(f"  checkpoint -> {args.out}", flush=True)
+
+
+if __name__ == "__main__":
+    main()
