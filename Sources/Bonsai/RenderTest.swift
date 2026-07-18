@@ -22,14 +22,24 @@ enum RenderTest {
             FileHandle.standardError.write(Data("failed to init simulation from \(path)\n".utf8))
             return nil
         }
-        if weights.cond >= 3 {
-            // Phase-conditioned creature: run its cycle with the behavior flag ON.
+        if weights.cond >= 2 {
+            // Phase-conditioned creature: run its cycle (behavior flag ON for NCA2).
             sim.condProvider = { step in
                 let theta = Float(step) * LainBehavior.omega
                 return (sin(theta), cos(theta), 1.0, 0.0)
             }
         }
-        print("weights: \(path) (cond \(weights.cond))")
+        if weights.zdim > 0 {
+            // Manifold creature: pick z via $BONSAI_ANCHOR (name) or $BONSAI_Z (csv).
+            let env = ProcessInfo.processInfo.environment
+            if let csv = env["BONSAI_Z"] {
+                sim.setZ(csv.split(separator: ",").compactMap { Float($0) })
+            } else {
+                let name = env["BONSAI_ANCHOR"] ?? "walk"
+                if let z = AnchorFile.load()?.anchors[name] { sim.setZ(z) }
+            }
+        }
+        print("weights: \(path) (cond \(weights.cond), zdim \(weights.zdim))")
         return sim
     }
 

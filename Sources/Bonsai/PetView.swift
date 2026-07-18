@@ -64,7 +64,7 @@ final class PetView: NSView {
 
     private func tick() {
         guard !paused else { return }
-        behavior?.tick(sim: sim)
+        behavior?.tick(sim: sim, window: window)
         guard let drawable = metalLayer.nextDrawable() else {
             sim.step(count: stepsPerTick)
             return
@@ -75,9 +75,11 @@ final class PetView: NSView {
 
     // MARK: - Interactions
 
-    /// Convert a view-space point (bottom-left origin) to grid coordinates (top-left origin).
+    /// Convert a view-space point (bottom-left origin) to grid coordinates (top-left
+    /// origin), accounting for the render mirror so pokes land where the eye sees them.
     private func gridPoint(for viewPoint: NSPoint) -> (x: Float, y: Float) {
-        let gx = Float(viewPoint.x / bounds.width) * Float(sim.gridWidth)
+        var gx = Float(viewPoint.x / bounds.width) * Float(sim.gridWidth)
+        if sim.flipX { gx = Float(sim.gridWidth) - gx }
         let gy = Float(1.0 - viewPoint.y / bounds.height) * Float(sim.gridHeight)
         return (gx, gy)
     }

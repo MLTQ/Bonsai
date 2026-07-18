@@ -6,8 +6,8 @@ Loader for `.nca` binary weight files (NCA1 from train_nca.py, NCA2 from train_c
 ## Components
 
 ### `NCAWeights`
-- **Does**: Parses header (magic NCA1/NCA2, shape, cond-channel count, fire rate) and the flat float32 weight block
-- **Rationale**: Weights kept as one flat array because the GPU consumes them as a single buffer with offsets computed in the shader. `cond` (0 for NCA1) determines the w1 row width: 48 + cond
+- **Does**: Parses header (magic NCA1/NCA2/NCA3, shape, cond/zdim, fire rate), the flat float32 weight block, and (NCA3) the FiLM matrices
+- **Rationale**: Weights kept as one flat array because the GPU consumes them as a single buffer with offsets computed in the shader. `cond` determines w1 row width (48+cond; NCA3 fixes cond=2 for sin/cos phase); `hidden` is now parsed, not assumed 128 (NCA3 uses 192); FiLM (`filmW`, `filmB`) stays CPU-side — see NCASimulation
 
 ### `weightsDir` / `defaultPath`
 - **Does**: Finds the weights directory ($BONSAI_WEIGHTS_DIR → ./weights → repo-relative → bundled Resources) / legacy bonsai.nca convenience

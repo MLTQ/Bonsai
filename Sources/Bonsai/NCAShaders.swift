@@ -2,13 +2,15 @@
 ///
 /// Generated per-creature: `cond` is the number of conditioning channels appended
 /// after the 48 perception features (0 for static creatures like the bonsai; 3 for
-/// the phase-conditioned Lain: sin(theta), cos(theta), behavior flag).
+/// the phase-conditioned Lain; 2 = sin/cos for NCA3 manifold creatures), `hidden`
+/// is the update-rule width, and `useFilm` enables FiLM modulation of the hidden
+/// layer (gamma/beta supplied per step in buffer 4, computed CPU-side from z).
 ///
 /// Must stay numerically equivalent to the PyTorch models in training/: perception
 /// ordering [identity, sobelX, sobelY] interleaved per channel, sobel / 8,
 /// cross-correlation with zero padding, per-cell stochastic fire mask, and life
 /// mask = alive(pre) AND alive(post) where alive is maxpool3x3(alpha) > 0.1.
-func ncaMetalSource(cond: Int) -> String {
+func ncaMetalSource(cond: Int, hidden: Int = 128, useFilm: Bool = false) -> String {
     """
     #include <metal_stdlib>
     using namespace metal;
@@ -17,7 +19,8 @@ func ncaMetalSource(cond: Int) -> String {
     constant int PCH = 48;
     constant int COND = \(cond);
     constant int PIN = PCH + COND;   // w1 input width
-    constant int HIDDEN = 128;
+    constant int HIDDEN = \(hidden);
+    constant bool USE_FILM = \(useFilm);
 
     struct Uniforms {
         int   width;
@@ -33,6 +36,7 @@ func ncaMetalSource(cond: Int) -> String {
         float cond2;
         float cond3;
         int   style;    // render: 0 = plain, 1 = CRT scanlines
+        int   flipX;    // render: mirror horizontally (creature facing)
     };
 
     inline float cellCh(const device float *s, int x, int y, int c, int W, int H) {
@@ -52,6 +56,7 @@ func ncaMetalSource(cond: Int) -> String {
                          device float *dst            [[buffer(1)]],
                          const device float *weights  [[buffer(2)]],
                          constant Uniforms &u         [[buffer(3)]],
+                         const device float *film     [[buffer(4)]],   // gamma[HIDDEN], beta[HIDDEN]
                          uint2 gid [[thread_position_in_grid]]) {
         int W = u.width, H = u.height;
         if ((int)gid.x >= W || (int)gid.y >= H) return;
@@ -81,6 +86,7 @@ func ncaMetalSource(cond: Int) -> String {
             float acc = b1[h];
             const device float *row = w1 + h * PIN;
             for (int i = 0; i < PIN; i++) acc += row[i] * percept[i];
+            if (USE_FILM) acc = acc * (1.0f + film[h]) + film[HIDDEN + h];
             hidden[h] = max(acc, 0.0f);
         }
 
@@ -132,6 +138,7 @@ func ncaMetalSource(cond: Int) -> String {
         if (gid.x >= tex.get_width() || gid.y >= tex.get_height()) return;
         int sx = int(gid.x * (uint)u.width  / tex.get_width());
         int sy = int(gid.y * (uint)u.height / tex.get_height());
+        if (u.flipX != 0) sx = u.width - 1 - sx;
         int base = (sy * u.width + sx) * CH;
         float4 rgba = clamp(float4(state[base], state[base+1], state[base+2], state[base+3]), 0.0, 1.0);
         rgba.rgb = min(rgba.rgb, rgba.a);  // premultiplied-alpha invariant

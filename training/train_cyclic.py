@@ -12,6 +12,7 @@ Usage: python3 train_cyclic.py [--iters 12000] [--out ../weights/lain.nca]
 """
 
 import argparse
+import importlib
 import time
 
 import numpy as np
@@ -19,7 +20,16 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from lain import BEHAVIORS, FRAMES, GRID, make_frames
+# Creature frame module is chosen via --creature; these are populated in main().
+# lain.py and shoggoth.py share the interface: FRAMES, BEHAVIORS, GRID, make_frames().
+BEHAVIORS = FRAMES = GRID = make_frames = None
+
+
+def _load_creature(name):
+    global BEHAVIORS, FRAMES, GRID, make_frames
+    mod = importlib.import_module(name)
+    BEHAVIORS, FRAMES, GRID = mod.BEHAVIORS, mod.FRAMES, mod.GRID
+    make_frames = mod.make_frames
 
 CH = 16
 HIDDEN = 128
@@ -127,10 +137,14 @@ def save_preview(model, frames_t, device, path):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--creature", default="lain", choices=["lain", "shoggoth"])
     ap.add_argument("--iters", type=int, default=12000)
-    ap.add_argument("--out", default="../weights/lain.nca")
+    ap.add_argument("--out", default=None)
     ap.add_argument("--device", default="mps" if torch.backends.mps.is_available() else "cpu")
     args = ap.parse_args()
+    _load_creature(args.creature)
+    if args.out is None:
+        args.out = f"../weights/{args.creature}.nca"
 
     device = torch.device(args.device)
     torch.manual_seed(0)
@@ -193,7 +207,7 @@ def main():
             print(f"iter {it:5d}  loss {loss.item():.5f}  {rate:.2f} it/s", flush=True)
         if it % 250 == 0 or it == args.iters:
             export(model, args.out)
-            save_preview(model, frames_t, device, "cyclic_preview.png")
+            save_preview(model, frames_t, device, f"cyclic_preview_{args.creature}.png")
             print(f"  checkpoint -> {args.out}", flush=True)
 
 
