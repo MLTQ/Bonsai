@@ -28,6 +28,10 @@ enum RenderTest {
                 let theta = Float(step) * LainBehavior.omega
                 return (sin(theta), cos(theta), 1.0, 0.0)
             }
+        } else if weights.cond == 1 {
+            // Clockless (autonomous) creature: only the behavior flag, held ON.
+            // Any cycling seen in a sequence render is the automaton keeping its own time.
+            sim.condProvider = { _ in (1.0, 0.0, 0.0, 0.0) }
         }
         if weights.zdim > 0 {
             // Manifold creature: pick z via $BONSAI_ANCHOR (name) or $BONSAI_Z (csv).
