@@ -18,3 +18,271 @@ iter   750  loss 0.03074  4.03 it/s
   checkpoint -> ../weights/lain.nca
 iter   800  loss 0.03064  4.02 it/s
 iter   850  loss 0.02841  4.02 it/s
+iter   900  loss 0.02244  4.03 it/s
+iter   950  loss 0.02541  4.03 it/s
+iter  1000  loss 0.03385  4.03 it/s
+  checkpoint -> ../weights/lain.nca
+iter  1050  loss 0.02250  4.03 it/s
+iter  1100  loss 0.01952  4.03 it/s
+iter  1150  loss 0.02373  4.03 it/s
+iter  1200  loss 0.01897  4.02 it/s
+iter  1250  loss 0.01945  4.03 it/s
+  checkpoint -> ../weights/lain.nca
+iter  1300  loss 0.01740  4.03 it/s
+iter  1350  loss 0.01912  4.02 it/s
+iter  1400  loss 0.01860  4.02 it/s
+iter  1450  loss 0.02217  4.02 it/s
+iter  1500  loss 0.01611  4.02 it/s
+  checkpoint -> ../weights/lain.nca
+iter  1550  loss 0.01460  4.02 it/s
+iter  1600  loss 0.02003  4.02 it/s
+iter  1650  loss 0.01541  4.02 it/s
+iter  1700  loss 0.01606  4.02 it/s
+iter  1750  loss 0.01239  4.02 it/s
+  checkpoint -> ../weights/lain.nca
+iter  1800  loss 0.01339  4.02 it/s
+iter  1850  loss 0.01076  4.01 it/s
+iter  1900  loss 0.01556  4.01 it/s
+iter  1950  loss 0.01308  4.01 it/s
+iter  2000  loss 0.01238  4.01 it/s
+  checkpoint -> ../weights/lain.nca
+iter  2050  loss 0.01045  4.01 it/s
+iter  2100  loss 0.00877  4.02 it/s
+iter  2150  loss 0.01114  4.02 it/s
+iter  2200  loss 0.01048  4.02 it/s
+iter  2250  loss 0.01230  4.02 it/s
+  checkpoint -> ../weights/lain.nca
+iter  2300  loss 0.01316  4.02 it/s
+iter  2350  loss 0.00887  4.02 it/s
+iter  2400  loss 0.01074  4.03 it/s
+iter  2450  loss 0.00856  4.02 it/s
+iter  2500  loss 0.01136  4.02 it/s
+  checkpoint -> ../weights/lain.nca
+iter  2550  loss 0.01001  4.02 it/s
+iter  2600  loss 0.00935  4.02 it/s
+iter  2650  loss 0.00926  4.02 it/s
+iter  2700  loss 0.00803  4.03 it/s
+iter  2750  loss 0.01001  4.03 it/s
+  checkpoint -> ../weights/lain.nca
+iter  2800  loss 0.00944  4.03 it/s
+iter  2850  loss 0.00928  4.03 it/s
+iter  2900  loss 0.00825  4.03 it/s
+iter  2950  loss 0.00803  4.03 it/s
+iter  3000  loss 0.00843  4.03 it/s
+  checkpoint -> ../weights/lain.nca
+iter  3050  loss 0.00612  4.03 it/s
+iter  3100  loss 0.00898  4.03 it/s
+iter  3150  loss 0.00852  4.03 it/s
+iter  3200  loss 0.00968  4.03 it/s
+iter  3250  loss 0.01041  4.03 it/s
+  checkpoint -> ../weights/lain.nca
+iter  3300  loss 0.00900  4.03 it/s
+iter  3350  loss 0.00701  4.03 it/s
+iter  3400  loss 0.00795  4.03 it/s
+iter  3450  loss 0.00847  4.03 it/s
+iter  3500  loss 0.00909  4.03 it/s
+  checkpoint -> ../weights/lain.nca
+iter  3550  loss 0.00730  4.03 it/s
+iter  3600  loss 0.00712  4.03 it/s
+iter  3650  loss 0.00495  4.03 it/s
+iter  3700  loss 0.00653  4.03 it/s
+iter  3750  loss 0.00688  4.03 it/s
+  checkpoint -> ../weights/lain.nca
+iter  3800  loss 0.00715  4.03 it/s
+iter  3850  loss 0.00679  4.03 it/s
+iter  3900  loss 0.00790  4.03 it/s
+iter  3950  loss 0.00532  4.03 it/s
+iter  4000  loss 0.00694  4.03 it/s
+  checkpoint -> ../weights/lain.nca
+iter  4050  loss 0.00362  4.03 it/s
+iter  4100  loss 0.00462  4.03 it/s
+iter  4150  loss 0.00478  4.03 it/s
+iter  4200  loss 0.00575  4.03 it/s
+iter  4250  loss 0.00454  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  4300  loss 0.00324  4.03 it/s
+iter  4350  loss 0.00332  4.03 it/s
+iter  4400  loss 0.00427  4.03 it/s
+iter  4450  loss 0.00444  4.03 it/s
+iter  4500  loss 0.00314  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  4550  loss 0.00347  4.04 it/s
+iter  4600  loss 0.00446  4.04 it/s
+iter  4650  loss 0.00294  4.04 it/s
+iter  4700  loss 0.00207  4.04 it/s
+iter  4750  loss 0.00428  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  4800  loss 0.00171  4.04 it/s
+iter  4850  loss 0.00255  4.04 it/s
+iter  4900  loss 0.00256  4.04 it/s
+iter  4950  loss 0.00224  4.03 it/s
+iter  5000  loss 0.00159  4.03 it/s
+  checkpoint -> ../weights/lain.nca
+iter  5050  loss 0.00298  4.04 it/s
+iter  5100  loss 0.00337  4.04 it/s
+iter  5150  loss 0.00201  4.04 it/s
+iter  5200  loss 0.00172  4.04 it/s
+iter  5250  loss 0.00187  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  5300  loss 0.00220  4.04 it/s
+iter  5350  loss 0.00145  4.04 it/s
+iter  5400  loss 0.00158  4.04 it/s
+iter  5450  loss 0.00285  4.04 it/s
+iter  5500  loss 0.00321  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  5550  loss 0.00200  4.04 it/s
+iter  5600  loss 0.00183  4.04 it/s
+iter  5650  loss 0.00192  4.04 it/s
+iter  5700  loss 0.00158  4.04 it/s
+iter  5750  loss 0.00136  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  5800  loss 0.00118  4.04 it/s
+iter  5850  loss 0.00156  4.04 it/s
+iter  5900  loss 0.00218  4.04 it/s
+iter  5950  loss 0.00154  4.04 it/s
+iter  6000  loss 0.00108  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  6050  loss 0.00123  4.04 it/s
+iter  6100  loss 0.00172  4.04 it/s
+iter  6150  loss 0.00139  4.04 it/s
+iter  6200  loss 0.00196  4.04 it/s
+iter  6250  loss 0.00170  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  6300  loss 0.00129  4.04 it/s
+iter  6350  loss 0.00221  4.04 it/s
+iter  6400  loss 0.00191  4.04 it/s
+iter  6450  loss 0.00106  4.04 it/s
+iter  6500  loss 0.00099  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  6550  loss 0.00139  4.04 it/s
+iter  6600  loss 0.00194  4.04 it/s
+iter  6650  loss 0.00094  4.04 it/s
+iter  6700  loss 0.00168  4.04 it/s
+iter  6750  loss 0.00111  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  6800  loss 0.00166  4.04 it/s
+iter  6850  loss 0.00076  4.04 it/s
+iter  6900  loss 0.00243  4.04 it/s
+iter  6950  loss 0.00166  4.04 it/s
+iter  7000  loss 0.00105  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  7050  loss 0.00269  4.04 it/s
+iter  7100  loss 0.00173  4.04 it/s
+iter  7150  loss 0.00141  4.04 it/s
+iter  7200  loss 0.00184  4.04 it/s
+iter  7250  loss 0.00117  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  7300  loss 0.00216  4.04 it/s
+iter  7350  loss 0.00165  4.04 it/s
+iter  7400  loss 0.00117  4.04 it/s
+iter  7450  loss 0.00092  4.04 it/s
+iter  7500  loss 0.00231  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  7550  loss 0.00103  4.04 it/s
+iter  7600  loss 0.00134  4.04 it/s
+iter  7650  loss 0.00108  4.04 it/s
+iter  7700  loss 0.00230  4.04 it/s
+iter  7750  loss 0.00112  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  7800  loss 0.00175  4.04 it/s
+iter  7850  loss 0.00110  4.04 it/s
+iter  7900  loss 0.00237  4.04 it/s
+iter  7950  loss 0.00156  4.04 it/s
+iter  8000  loss 0.00086  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  8050  loss 0.00158  4.04 it/s
+iter  8100  loss 0.00161  4.04 it/s
+iter  8150  loss 0.00199  4.04 it/s
+iter  8200  loss 0.00103  4.04 it/s
+iter  8250  loss 0.00105  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  8300  loss 0.00160  4.04 it/s
+iter  8350  loss 0.00131  4.04 it/s
+iter  8400  loss 0.00101  4.04 it/s
+iter  8450  loss 0.00204  4.04 it/s
+iter  8500  loss 0.00135  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  8550  loss 0.00169  4.04 it/s
+iter  8600  loss 0.00109  4.04 it/s
+iter  8650  loss 0.00148  4.04 it/s
+iter  8700  loss 0.00136  4.04 it/s
+iter  8750  loss 0.00206  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  8800  loss 0.00100  4.04 it/s
+iter  8850  loss 0.00092  4.04 it/s
+iter  8900  loss 0.00084  4.04 it/s
+iter  8950  loss 0.00266  4.04 it/s
+iter  9000  loss 0.00139  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  9050  loss 0.00256  4.04 it/s
+iter  9100  loss 0.00088  4.04 it/s
+iter  9150  loss 0.00171  4.04 it/s
+iter  9200  loss 0.00131  4.04 it/s
+iter  9250  loss 0.00208  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  9300  loss 0.00334  4.04 it/s
+iter  9350  loss 0.00121  4.04 it/s
+iter  9400  loss 0.00173  4.04 it/s
+iter  9450  loss 0.00131  4.04 it/s
+iter  9500  loss 0.00150  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  9550  loss 0.00135  4.04 it/s
+iter  9600  loss 0.00110  4.04 it/s
+iter  9650  loss 0.00130  4.04 it/s
+iter  9700  loss 0.00088  4.04 it/s
+iter  9750  loss 0.00094  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter  9800  loss 0.00232  4.04 it/s
+iter  9850  loss 0.00089  4.04 it/s
+iter  9900  loss 0.00109  4.04 it/s
+iter  9950  loss 0.00139  4.04 it/s
+iter 10000  loss 0.00187  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter 10050  loss 0.00216  4.04 it/s
+iter 10100  loss 0.00115  4.04 it/s
+iter 10150  loss 0.00140  4.04 it/s
+iter 10200  loss 0.00148  4.04 it/s
+iter 10250  loss 0.00106  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter 10300  loss 0.00135  4.04 it/s
+iter 10350  loss 0.00137  4.04 it/s
+iter 10400  loss 0.00071  4.04 it/s
+iter 10450  loss 0.00170  4.04 it/s
+iter 10500  loss 0.00213  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter 10550  loss 0.00114  4.04 it/s
+iter 10600  loss 0.00091  4.04 it/s
+iter 10650  loss 0.00134  4.04 it/s
+iter 10700  loss 0.00081  4.04 it/s
+iter 10750  loss 0.00095  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter 10800  loss 0.00126  4.04 it/s
+iter 10850  loss 0.00219  4.04 it/s
+iter 10900  loss 0.00149  4.04 it/s
+iter 10950  loss 0.00136  4.04 it/s
+iter 11000  loss 0.00078  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter 11050  loss 0.00085  4.04 it/s
+iter 11100  loss 0.00080  4.04 it/s
+iter 11150  loss 0.00142  4.04 it/s
+iter 11200  loss 0.00143  4.04 it/s
+iter 11250  loss 0.00113  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter 11300  loss 0.00078  4.04 it/s
+iter 11350  loss 0.00133  4.04 it/s
+iter 11400  loss 0.00109  4.04 it/s
+iter 11450  loss 0.00137  4.04 it/s
+iter 11500  loss 0.00276  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter 11550  loss 0.00145  4.04 it/s
+iter 11600  loss 0.00120  4.04 it/s
+iter 11650  loss 0.00075  4.04 it/s
+iter 11700  loss 0.00101  4.04 it/s
+iter 11750  loss 0.00139  4.04 it/s
+  checkpoint -> ../weights/lain.nca
+iter 11800  loss 0.00137  4.04 it/s
+iter 11850  loss 0.00074  4.04 it/s
+iter 11900  loss 0.00181  4.04 it/s
+iter 11950  loss 0.00126  4.04 it/s
+iter 12000  loss 0.00085  4.04 it/s
+  checkpoint -> ../weights/lain.nca
