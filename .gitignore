@@ -5,3 +5,9 @@ training/*_preview.png
 training/lain_*.png
 __pycache__/
 dist/
+training/preview3d.png
+training/target3d_*.png
+training/manifold_anchor_check.png
+training/shog_*.png
+training/shoggoth_sheet.png
+training/cyclic_preview_*.png

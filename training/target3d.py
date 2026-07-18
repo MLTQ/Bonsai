@@ -1,0 +1,112 @@
+"""Procedural voxel bonsai — the 3D NCA's first growth target.
+
+Drawn at 2x supersample (64^3) with soft-edged primitives, box-filtered to
+GRID3^3, RGBA where alpha is volumetric density (premultiplied RGB).
+Axes: x right, y up, z toward viewer. Pot sits at low y.
+
+Preview: python3 target3d.py writes max-intensity projections along each axis.
+"""
+
+import numpy as np
+
+GRID3 = 32
+SS = 2
+S = GRID3 * SS  # supersampled edge
+
+
+def _coords():
+    return np.mgrid[0:S, 0:S, 0:S].astype(np.float32) / SS  # (3, S, S, S) in grid units
+
+
+def _sphere(vol, cx, cy, cz, r, color, soft=0.8):
+    x, y, z = _coords()
+    d = np.sqrt((x - cx) ** 2 + (y - cy) ** 2 + (z - cz) ** 2)
+    m = np.clip((r - d) / soft, 0, 1)
+    _composite(vol, m, color)
+
+
+def _swept(vol, pts, r0, r1, color, soft=0.6):
+    """Sweep spheres of tapering radius along a polyline of 3D points."""
+    n = len(pts)
+    for i, p in enumerate(pts):
+        t = i / max(n - 1, 1)
+        _sphere(vol, p[0], p[1], p[2], r0 + (r1 - r0) * t, color, soft)
+
+
+def _cone_pot(vol, cx, cy, cz, r_top, r_bot, h, color):
+    x, y, z = _coords()
+    t = np.clip((y - (cy - h)) / h, 0, 1)          # 0 at bottom, 1 at top
+    r = r_bot + (r_top - r_bot) * t
+    d = np.sqrt((x - cx) ** 2 + (z - cz) ** 2)
+    m = np.clip((r - d) / 0.7, 0, 1) * ((y >= cy - h) & (y <= cy)).astype(np.float32)
+    _composite(vol, m, color)
+
+
+def _composite(vol, m, color):
+    """Painter's-order composite: density maxes, color overwrites where this
+    primitive is substantially present (matches the 2D generators' semantics)."""
+    a = m[..., None]
+    rgb = np.array(color, np.float32)[None, None, None, :]
+    vol[..., 3:4] = np.maximum(vol[..., 3:4], a)
+    np.copyto(vol[..., 0:3], rgb, where=a > 0.15)
+
+
+def _bezier3(p0, p1, p2, n=36):
+    t = np.linspace(0, 1, n)[:, None]
+    p0, p1, p2 = (np.array(p, np.float32) for p in (p0, p1, p2))
+    return (1 - t) ** 2 * p0 + 2 * (1 - t) * t * p1 + t ** 2 * p2
+
+
+def make_target3d():
+    """(GRID3, GRID3, GRID3, 4) float32, y-up, premultiplied alpha."""
+    pot = (0.78, 0.43, 0.27)
+    soil = (0.30, 0.20, 0.13)
+    bark = (0.45, 0.30, 0.18)
+    leaf = (0.22, 0.47, 0.22)
+    leaf_hi = (0.39, 0.66, 0.31)
+
+    vol = np.zeros((S, S, S, 4), dtype=np.float32)
+    c = GRID3 / 2  # 16
+
+    # Pot (truncated cone) + soil disk
+    _cone_pot(vol, c, 9.0, c, 6.5, 4.5, 5.0, pot)
+    _cone_pot(vol, c, 9.6, c, 5.6, 5.4, 0.9, soil)
+
+    # Trunk: S-curve up with a side branch
+    trunk = _bezier3((c + 0.5, 9.5, c), (c + 3.0, 15.0, c - 1.0), (c - 2.0, 21.0, c + 0.5))
+    _swept(vol, trunk, 1.9, 0.9, bark, soft=0.5)
+    branch = _bezier3((c + 1.2, 14.0, c - 0.5), (c + 4.0, 16.5, c + 1.5), (c + 6.0, 19.0, c + 2.5))
+    _swept(vol, branch, 1.1, 0.6, bark, soft=0.5)
+
+    # Foliage: overlapping soft spheres, dark base + light crowns
+    _sphere(vol, c - 2.5, 23.5, c + 0.5, 4.8, leaf, soft=1.4)
+    _sphere(vol, c + 6.0, 20.5, c + 2.5, 3.4, leaf, soft=1.2)
+    _sphere(vol, c - 6.0, 21.0, c - 1.5, 2.8, leaf, soft=1.1)
+    _sphere(vol, c - 1.0, 25.5, c, 3.2, leaf_hi, soft=1.2)
+    _sphere(vol, c + 5.0, 22.0, c + 3.0, 2.0, leaf_hi, soft=1.0)
+
+    # Downsample 2x (box filter), premultiply
+    small = vol.reshape(GRID3, SS, GRID3, SS, GRID3, SS, 4).mean(axis=(1, 3, 5))
+    small[..., :3] *= small[..., 3:4]
+    # Index order: currently (x, y, z, c) from mgrid; standardize to (z, y, x, c)
+    return np.ascontiguousarray(small.transpose(2, 1, 0, 3)).astype(np.float32)
+
+
+if __name__ == "__main__":
+    from PIL import Image
+
+    t = make_target3d()
+    for axis, name in [(0, "front_zy"), (1, "top"), (2, "side")]:
+        # weighted projection along axis: emission-absorption-ish quick look
+        alpha = t[..., 3]
+        rgb = t[..., :3]
+        w = alpha / (alpha.sum(axis=axis, keepdims=True) + 1e-6)
+        proj_rgb = (rgb * w[..., None]).sum(axis=axis)
+        proj_a = 1 - np.prod(1 - np.clip(alpha, 0, 1) * 0.9, axis=axis)
+        img = np.concatenate([proj_rgb, proj_a[..., None]], axis=-1)
+        if axis != 1:
+            img = img[::-1]  # y-up for display
+        png = (np.clip(img, 0, 1) * 255).astype(np.uint8)
+        Image.fromarray(png, "RGBA").resize((GRID3 * 8, GRID3 * 8), Image.NEAREST).save(
+            f"target3d_{name}.png")
+    print("wrote target3d_{front_zy,top,side}.png")
