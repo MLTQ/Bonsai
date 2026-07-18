@@ -102,6 +102,24 @@ def damage(x):
     return x
 
 
+def load_nca2(model, path):
+    """Warm-start from an exported NCA2 file (continuation training)."""
+    import struct
+
+    with open(path, "rb") as f:
+        assert f.read(4) == b"NCA2", "not an NCA2 file"
+        ch, hid, cond = struct.unpack("<3i", f.read(12))
+        assert (ch, hid, cond) == (CH, HIDDEN, COND), "shape mismatch"
+        f.read(4)  # fire rate
+        def arr(n):
+            return np.frombuffer(f.read(n * 4), dtype="<f4").copy()
+        with torch.no_grad():
+            model.w1.weight.copy_(torch.from_numpy(arr(HIDDEN * (CH * 3 + COND))).view(HIDDEN, CH * 3 + COND, 1, 1))
+            model.w1.bias.copy_(torch.from_numpy(arr(HIDDEN)))
+            model.w2.weight.copy_(torch.from_numpy(arr(CH * HIDDEN)).view(CH, HIDDEN, 1, 1))
+            model.w2.bias.copy_(torch.from_numpy(arr(CH)))
+
+
 def export(model, path):
     with open(path, "wb") as f:
         f.write(b"NCA2")
@@ -141,6 +159,8 @@ def main():
     ap.add_argument("--iters", type=int, default=12000)
     ap.add_argument("--out", default=None)
     ap.add_argument("--device", default="mps" if torch.backends.mps.is_available() else "cpu")
+    ap.add_argument("--init", default=None, help="warm-start from an exported .nca")
+    ap.add_argument("--lr", type=float, default=2e-3)
     args = ap.parse_args()
     _load_creature(args.creature)
     if args.out is None:
@@ -152,7 +172,10 @@ def main():
 
     frames_t = torch.from_numpy(make_frames()).permute(0, 1, 4, 2, 3).to(device)  # (B,F,4,H,W)
     model = CyclicNCA().to(device)
-    opt = torch.optim.Adam(model.parameters(), lr=2e-3)
+    if args.init:
+        load_nca2(model, args.init)
+        print(f"warm-started from {args.init}", flush=True)
+    opt = torch.optim.Adam(model.parameters(), lr=args.lr)
     sched = torch.optim.lr_scheduler.MultiStepLR(opt, milestones=[4000], gamma=0.1)
 
     pool = make_seed(POOL_SIZE, device)
