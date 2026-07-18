@@ -1,27 +1,29 @@
 # AppDelegate.swift
 
 ## Purpose
-Composition root: creates the transparent floating window, the status-bar item, loads weights, and hot-reloads the weights file when training writes a new checkpoint.
+Composition root: transparent floating window, status-bar item, creature loading/switching from the registry, and hot-reload of the current creature's weights file.
 
 ## Components
 
 ### `AppDelegate`
-- **Does**: App lifecycle; owns window, status item, simulation
-- **Interacts with**: `NCAWeights.defaultPath()/load`, `NCASimulation`, `PetView`
+- **Does**: App lifecycle; owns window, status item, current sim + behavior
+- **Interacts with**: `Creature.registry`, `NCAWeights`, `NCASimulation`, `PetView`
+
+### `load(creature:)`
+- **Does**: Loads weights, builds a sim (shader compiled for that creature's cond width), wires behavior → condProvider, swaps the window's PetView; persists choice in UserDefaults
+- **Rationale**: Sim rebuild (not weight swap) is required whenever cond width differs
 
 ### `makeWindow`
-- **Does**: Borderless, clear, shadowless, `.floating`-level window that joins all Spaces
-- **Rationale**: This combination is the entire "desktop pet" illusion — the window is invisible except the pet's pixels
+- **Does**: Borderless, clear, shadowless, `.floating`-level window joining all Spaces; frame autosaved ("BonsaiPetWindow") so the pet stays where you left it
+- **Rationale**: This combination is the entire "desktop pet" illusion
 
 ### `watchWeights`
-- **Does**: Polls the weights file mtime every 2 s; reloads on change
-- **Rationale**: Lets a running training session visibly improve the pet live; polling (not FSEvents) because 2 s latency is fine and it's 10× simpler
+- **Does**: Polls the current creature's weights mtime every 2 s; hot-swaps on change, rebuilding the sim if `updateWeights` reports a shape mismatch
+- **Rationale**: Lets a running training session visibly improve the pet live
 
 ## Contracts
 
 | Dependent | Expects | Breaking changes |
 |-----------|---------|------------------|
 | `main.swift` | `AppDelegate()` + `applicationDidFinishLaunching` | Class name/protocol |
-
-## Notes
-- Window spawns bottom-right of the main screen. If multiple pets are ever supported, window creation moves out of here.
+| `Creature.swift` | Registry consulted at launch and in menu rebuilds | Registry shape |

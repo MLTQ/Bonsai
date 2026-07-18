@@ -13,4 +13,5 @@ Entry point. Dispatches between the desktop-pet app (default) and the headless r
 
 | Dependent | Expects | Breaking changes |
 |-----------|---------|------------------|
-| CLI users / scripts | `--render-test [path] [steps]` flag shape | Flag renames |
+| CLI users / scripts | `--render-test [path] [steps] [weights]` and `--render-seq dir count stride [weights]` flag shapes | Flag renames |
+| `scripts/make_app.sh` | `--render-test` used for icon generation | Flag renames |

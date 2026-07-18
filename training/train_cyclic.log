@@ -1,0 +1,20 @@
+iter    50  loss 0.16447  3.54 it/s
+iter   100  loss 0.13611  3.89 it/s
+iter   150  loss 0.14645  3.95 it/s
+iter   200  loss 0.11842  3.99 it/s
+iter   250  loss 0.20249  3.98 it/s
+  checkpoint -> ../weights/lain.nca
+iter   300  loss 0.07188  3.96 it/s
+iter   350  loss 0.05858  4.00 it/s
+iter   400  loss 0.05198  4.01 it/s
+iter   450  loss 0.03784  4.02 it/s
+iter   500  loss 0.03197  4.03 it/s
+  checkpoint -> ../weights/lain.nca
+iter   550  loss 0.03285  4.02 it/s
+iter   600  loss 0.02895  4.02 it/s
+iter   650  loss 0.03177  4.02 it/s
+iter   700  loss 0.02544  4.02 it/s
+iter   750  loss 0.03074  4.03 it/s
+  checkpoint -> ../weights/lain.nca
+iter   800  loss 0.03064  4.02 it/s
+iter   850  loss 0.02841  4.02 it/s

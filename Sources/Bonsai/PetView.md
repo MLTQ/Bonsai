@@ -6,8 +6,8 @@ The pet's visible body and touch surface: hosts the CAMetalLayer, runs the 30 fp
 ## Components
 
 ### `PetView`
-- **Does**: NSView backed by CAMetalLayer; timer tick = N sim steps + present
-- **Interacts with**: `NCASimulation` (step/damage/reseed)
+- **Does**: NSView backed by CAMetalLayer; timer tick = behavior tick + N sim steps + present; pauses while displays sleep (NSWorkspace notifications)
+- **Interacts with**: `NCASimulation` (step/damage/reseed), `CreatureBehavior?` (autonomy)
 - **Rationale**: Timer added to `.common` run-loop mode so the pet keeps animating while being dragged
 
 ### Mouse handling
