@@ -65,6 +65,51 @@ enum RenderTest {
         return 0
     }
 
+    /// Volumetric: grow for N steps, raymarch offscreen, write PNG.
+    /// `bonsai --render-test3d out.png [steps] [weights] [azimuthDeg]`
+    static func run3D(outputPath: String, steps: Int, weightsPath: String?,
+                      azimuthDegrees: Float) -> Int32 {
+        guard let path = weightsPath,
+              let device = MTLCreateSystemDefaultDevice(),
+              let weights = try? NCAWeights.load(from: path),
+              let sim = NCASimulation3D(device: device, weights: weights,
+                                        seed: path.contains("bonsai3d")
+                                            ? (16, 10, 16) : nil)
+        else {
+            FileHandle.standardError.write(Data("failed to init 3D simulation\n".utf8))
+            return 1
+        }
+        if weights.cond >= 3 {
+            sim.condProvider = { step in
+                let theta = Float(step) * LainBehavior.omega
+                return (sin(theta), cos(theta), 1.0, 0.0)
+            }
+        }
+        sim.azimuth = azimuthDegrees * .pi / 180
+        print("weights: \(path) (3D, cond \(weights.cond))")
+        sim.step(count: steps)
+        guard let bytes = sim.renderOffscreen(size: 512),
+              writeRGBA8PNG(bytes: bytes, width: 512, height: 512, to: outputPath)
+        else { return 1 }
+        print("wrote \(outputPath) after \(steps) steps (azimuth \(azimuthDegrees) deg)")
+        return 0
+    }
+
+    private static func writeRGBA8PNG(bytes: [UInt8], width: Int, height: Int,
+                                      to outputPath: String) -> Bool {
+        var pixels = bytes
+        let ctx = CGContext(data: &pixels, width: width, height: height,
+                            bitsPerComponent: 8, bytesPerRow: width * 4,
+                            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard let image = ctx?.makeImage(),
+              let dest = CGImageDestinationCreateWithURL(
+                  URL(fileURLWithPath: outputPath) as CFURL, UTType.png.identifier as CFString, 1, nil)
+        else { return false }
+        CGImageDestinationAddImage(dest, image, nil)
+        return CGImageDestinationFinalize(dest)
+    }
+
     private static func writePNG(sim: NCASimulation, to outputPath: String, scale: Int = 4) -> Bool {
         let rgba = sim.readRGBA()
         let w = sim.gridWidth, h = sim.gridHeight

@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow!
     private var statusItem: NSStatusItem!
     private var sim: NCASimulation?
+    private var sim3D: NCASimulation3D?
     private var behavior: CreatureBehavior?
     private var currentCreature: Creature?
     private var weightsMTime: Date?
@@ -39,28 +40,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func load(creature: Creature) {
         guard let path = creature.path,
               let device = MTLCreateSystemDefaultDevice(),
-              let weights = try? NCAWeights.load(from: path),
-              let sim = NCASimulation(device: device, weights: weights)
+              let weights = try? NCAWeights.load(from: path)
         else {
             fatalErrorAlert("Failed to load creature '\(creature.name)'")
             return
         }
-        sim.renderStyle = creature.renderStyle
-        let behavior = creature.makeBehavior()
-        if let behavior {
-            sim.condProvider = { [weak behavior] step in
-                behavior?.cond(step: step) ?? (0, 0, 0, 0)
+        let size = Self.windowSize
+        let frame = NSRect(x: 0, y: 0, width: size, height: size)
+
+        if creature.volumetric {
+            guard let sim3D = NCASimulation3D(device: device, weights: weights,
+                                              seed: creature.seed3D) else {
+                fatalErrorAlert("Failed to init 3D simulation for '\(creature.name)'")
+                return
             }
+            self.sim3D = sim3D
+            self.sim = nil
+            self.behavior = nil
+            window.contentView = VoxelPetView(simulation: sim3D,
+                                              cyclic: weights.cond >= 3, frame: frame)
+        } else {
+            guard let sim = NCASimulation(device: device, weights: weights) else {
+                fatalErrorAlert("Failed to init simulation for '\(creature.name)'")
+                return
+            }
+            sim.renderStyle = creature.renderStyle
+            let behavior = creature.makeBehavior()
+            if let behavior {
+                sim.condProvider = { [weak behavior] step in
+                    behavior?.cond(step: step) ?? (0, 0, 0, 0)
+                }
+            }
+            self.sim = sim
+            self.sim3D = nil
+            self.behavior = behavior
+            window.contentView = PetView(simulation: sim, behavior: behavior, frame: frame)
         }
-        self.sim = sim
-        self.behavior = behavior
         self.currentCreature = creature
         self.weightsMTime = fileMTime(path)
         UserDefaults.standard.set(creature.name, forKey: "creature")
-
-        let size = Self.windowSize
-        window.contentView = PetView(simulation: sim, behavior: behavior,
-                                     frame: NSRect(x: 0, y: 0, width: size, height: size))
     }
 
     @objc private func switchCreature(_ sender: NSMenuItem) {
@@ -134,13 +152,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
     }
 
-    @objc private func reseed() { sim?.reseed() }
+    @objc private func reseed() {
+        sim?.reseed()
+        sim3D?.reseed()
+    }
 
     @objc private func reloadWeights() {
         guard let creature = currentCreature, let path = creature.path,
               let weights = try? NCAWeights.load(from: path) else { return }
-        if sim?.updateWeights(weights) != true {
-            load(creature: creature)  // conditioning shape changed: rebuild
+        let ok = creature.volumetric ? sim3D?.updateWeights(weights) : sim?.updateWeights(weights)
+        if ok != true {
+            load(creature: creature)  // shape changed: rebuild
         }
     }
 

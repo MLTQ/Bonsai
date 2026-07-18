@@ -15,6 +15,9 @@ struct NCAWeights {
     let cond: Int
     /// FiLM latent dimension (NCA3 only; 0 otherwise).
     let zdim: Int
+    /// 2 for planar creatures (3 perception kernels), 3 for volumetric (4 kernels:
+    /// identity + Sobel x/y/z). Formats NC3D (static) and NC3C (cyclic) are 3D.
+    let spatialDims: Int
     /// w1, b1, w2, b2 concatenated — uploaded to the GPU as one buffer.
     let flat: [Float]
     /// FiLM matrices, filmW row-major (2*hidden, zdim) then filmB (2*hidden). Empty unless NCA3.
@@ -42,7 +45,10 @@ struct NCAWeights {
         }
         guard data.count > 20 else { throw LoadError.badMagic }
         let magic = String(decoding: data.prefix(4), as: UTF8.self)
-        guard ["NCA1", "NCA2", "NCA3"].contains(magic) else { throw LoadError.badMagic }
+        guard ["NCA1", "NCA2", "NCA3", "NC3D", "NC3C"].contains(magic) else {
+            throw LoadError.badMagic
+        }
+        let spatialDims = magic.hasPrefix("NC3") ? 3 : 2
 
         func i32(_ off: Int) -> Int {
             Int(data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: off, as: Int32.self) })
@@ -58,7 +64,7 @@ struct NCAWeights {
         var offset = 12
         var cond = 0, zdim = 0
         switch magic {
-        case "NCA2":
+        case "NCA2", "NC3C":
             cond = i32(12)
             guard (0...4).contains(cond) else { throw LoadError.shapeMismatch("cond=\(cond)") }
             offset = 16
@@ -73,7 +79,7 @@ struct NCAWeights {
         let fireRate = f32(offset)
         offset += 4
 
-        let w1In = channels * 3 + cond
+        let w1In = channels * (spatialDims == 3 ? 4 : 3) + cond
         let baseCount = hidden * w1In + hidden + channels * hidden + channels
         let filmCount = zdim > 0 ? (2 * hidden * zdim + 2 * hidden) : 0
         guard data.count >= offset + (baseCount + filmCount) * 4 else { throw LoadError.truncated }
@@ -90,6 +96,7 @@ struct NCAWeights {
         }
 
         return NCAWeights(hidden: hidden, fireRate: fireRate, cond: cond, zdim: zdim,
+                          spatialDims: spatialDims,
                           flat: floats(offset, baseCount),
                           film: floats(offset + baseCount * 4, filmCount))
     }

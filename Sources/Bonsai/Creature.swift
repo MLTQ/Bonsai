@@ -8,6 +8,10 @@ struct Creature {
     let fileName: String
     let renderStyle: Int32
     let makeBehavior: () -> CreatureBehavior?
+    /// Volumetric creatures run on NCASimulation3D + VoxelPetView.
+    var volumetric: Bool = false
+    /// Seed voxel for volumetric creatures (must match the trainer's seed position).
+    var seed3D: (x: Int, y: Int, z: Int)? = nil
 
     static let registry: [Creature] = [
         Creature(name: "Bonsai", fileName: "bonsai.nca", renderStyle: 0, makeBehavior: { nil }),
@@ -16,6 +20,10 @@ struct Creature {
                  makeBehavior: { ShoggothBehavior() }),
         Creature(name: "Manifold", fileName: "shoggoth_manifold.nca", renderStyle: 0,
                  makeBehavior: { ManifoldBehavior() }),
+        Creature(name: "Bonsai 3D", fileName: "bonsai3d.nca", renderStyle: 0,
+                 makeBehavior: { nil }, volumetric: true, seed3D: (16, 10, 16)),
+        Creature(name: "Shoggoth Mk. III", fileName: "shoggoth3d.nca", renderStyle: 0,
+                 makeBehavior: { nil }, volumetric: true),
     ]
 
     var path: String? {
