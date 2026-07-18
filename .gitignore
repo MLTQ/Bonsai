@@ -12,3 +12,6 @@ training/shog_*.png
 training/shoggoth_sheet.png
 training/cyclic_preview_*.png
 training/shog3d_*.png
+paper/*.aux
+paper/*.log
+paper/*.out
