@@ -95,6 +95,40 @@ enum RenderTest {
         return 0
     }
 
+    /// Volumetric animation evidence: one persistent sim, a PNG every `stride` steps
+    /// while the camera orbits slowly. `--render-seq3d outdir count stride weights [azStartDeg]`
+    static func runSequence3D(outDir: String, count: Int, stride: Int,
+                              weightsPath: String?, azimuthDegrees: Float) -> Int32 {
+        guard let path = weightsPath,
+              let device = MTLCreateSystemDefaultDevice(),
+              let weights = try? NCAWeights.load(from: path),
+              let sim = NCASimulation3D(device: device, weights: weights,
+                                        seed: path.contains("bonsai3d") ? (16, 10, 16) : nil)
+        else {
+            FileHandle.standardError.write(Data("failed to init 3D simulation\n".utf8))
+            return 1
+        }
+        if weights.cond >= 3 {
+            sim.condProvider = { step in
+                let theta = Float(step) * LainBehavior.omega
+                return (sin(theta), cos(theta), 1.0, 0.0)
+            }
+        }
+        try? FileManager.default.createDirectory(atPath: outDir, withIntermediateDirectories: true)
+        sim.azimuth = azimuthDegrees * .pi / 180
+        sim.step(count: 300)
+        for i in 0..<count {
+            sim.step(count: stride)
+            sim.azimuth += 0.02
+            guard let bytes = sim.renderOffscreen(size: 256),
+                  writeRGBA8PNG(bytes: bytes, width: 256, height: 256,
+                                to: String(format: "%@/frame_%03d.png", outDir, i))
+            else { return 1 }
+        }
+        print("wrote \(count) 3D frames (every \(stride) steps) to \(outDir)")
+        return 0
+    }
+
     private static func writeRGBA8PNG(bytes: [UInt8], width: Int, height: Int,
                                       to outputPath: String) -> Bool {
         var pixels = bytes

@@ -18,6 +18,12 @@ if args.count >= 2, args[1] == "--render-test3d" {
     exit(RenderTest.run3D(outputPath: out, steps: steps, weightsPath: weights,
                           azimuthDegrees: azimuth))
 }
+if args.count >= 6, args[1] == "--render-seq3d" {
+    let azimuth = args.count >= 7 ? Float(args[6]) ?? 30 : 30
+    exit(RenderTest.runSequence3D(outDir: args[2], count: Int(args[3]) ?? 24,
+                                  stride: Int(args[4]) ?? 10, weightsPath: args[5],
+                                  azimuthDegrees: azimuth))
+}
 if args.count >= 5, args[1] == "--render-seq" {
     let outDir = args[2]
     let count = Int(args[3]) ?? 24
