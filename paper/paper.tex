@@ -293,9 +293,23 @@ modest load in 3D.
 
 \section{Limitations and Honest Framing}
 The phase clock is \emph{external}: these organisms track a conditioning
-oscillator rather than keeping time themselves. (A fine-tuning experiment that
-removes the clock and forces the hidden channels to become a distributed
-oscillator is running as this draft is written.) MSE training softens precise
+oscillator rather than keeping time themselves. Two fine-tuning experiments
+that remove the clock give a characterized partial result. Na\"{\i}vely
+deleting the phase inputs collapses the gait to its \emph{temporal mean}
+(a motionless blur of all phases) --- the cheapest MSE response to a schedule
+the automaton cannot stay synchronized with. Adding a synchronization
+curriculum (rollout horizons growing $12 \to 96$ steps) and \emph{oscillator
+distillation} (an auxiliary loss asking the alive-population mean of two
+hidden channels to encode $\cos\theta, \sin\theta$) prevents collapse: the
+clockless organism then moves vigorously and indefinitely with intact
+identity (consecutive-frame motion $6\times$ the collapsed baseline). But
+recurrence analysis over 600-step rollouts shows no stable period --- only a
+weak local minimum at the trained period --- indicating the distributed phase
+code decoheres, plausibly because stochastic per-cell firing injects phase
+noise faster than the learned coupling re-synchronizes it. The automaton
+retains \emph{that} it moves, not \emph{the} cycle. Stronger coupling
+mechanisms (explicit neighbor phase terms, reduced firing noise, longer
+curricula) are the obvious next experiments. MSE training softens precise
 geometry --- fine for protoplasm, hostile to machined shapes; edge-weighted or
 perceptual losses are untested here. All results are single-seed, without
 ablations or quantitative animation metrics (a cycle-consistency measure ---
