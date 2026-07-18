@@ -130,15 +130,30 @@ def main():
             if it > 500:
                 x[-DAMAGE_N:] = damage(x[-DAMAGE_N:])
 
-        T = np.random.randint(48, 97)
+        # Sync curriculum: short horizons first (staying in phase for 1/10 cycle is
+        # learnable; free-running half a cycle from scratch collapses to the temporal
+        # mean of the gait — observed as a fused "fog skirt" at iteration 3.1k).
+        tmax = min(96, 12 + it // 60)
+        T = np.random.randint(12, tmax + 1)
         loss = torch.zeros((), device=device)
-        checkpoints = {T - 24: 0.5, T - 12: 0.75, T - 1: 1.0}
+        check_every = max(6, T // 4)
         bcond = beh.float()[:, None]
         for t in range(T):
             x = model(x, bcond)          # no phase input — only the behavior flag
             theta = theta + OMEGA        # the *schedule* still advances
-            if t in checkpoints:
-                loss = loss + checkpoints[t] * ((x[:, :4] - target_at(frames_t, beh, theta)) ** 2).mean()
+            if (t + 1) % check_every == 0 or t == T - 1:
+                loss = loss + ((x[:, :4] - target_at(frames_t, beh, theta)) ** 2).mean()
+                # Oscillator distillation: alive-population mean of hidden channels
+                # 14/15 should encode (cos, sin) of the schedule phase — a learned
+                # wristwatch, fully internal at runtime.
+                alive = (x[:, 3:4] > 0.1).float()
+                denom = alive.sum(dim=(2, 3)).clamp(min=1.0)
+                osc_c = (x[:, 14:15] * alive).sum(dim=(2, 3)) / denom
+                osc_s = (x[:, 15:16] * alive).sum(dim=(2, 3)) / denom
+                loss = loss + 0.05 * (
+                    (osc_c.squeeze(1) - torch.cos(theta)) ** 2
+                    + (osc_s.squeeze(1) - torch.sin(theta)) ** 2
+                ).mean()
 
         if not torch.isfinite(loss):
             print(f"iter {it}: non-finite loss, discarded", flush=True)
