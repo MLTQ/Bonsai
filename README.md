@@ -59,6 +59,30 @@ being itself while training continues.
 
 Every code file has a companion `.md` documenting intent and contracts.
 
+## Connecting an agent (optional)
+
+The creature's entire external interface is one file: `weights/control.json`,
+polled at 1 Hz. Anything that writes `{"anchor": "dread"}` or
+`{"z": [10 floats in 0..1]}` steers the Manifold creature's mood. Three ways in:
+
+```sh
+scripts/mood.sh manic                          # named anchor
+scripts/mood.sh 0.9 1 0.8 0 1 1 0.5 0.9 0.9 0.9   # raw z (the rich channel)
+scripts/mood.sh --text "tests finally green"   # semantic projection
+```
+
+The projection layer (`tools/mood_projector.py`, needs Python +
+sentence-transformers; ~90 MB local model on first run) maps arbitrary text
+into mood-space. Its `--trace` mode tails your **local** Claude Code
+transcripts (`~/.claude/projects/*/*.jsonl`) and drives the creature from
+whatever your agent is currently doing — an ambient display of its cognition.
+
+Privacy notes, plainly: there is no network connection to Claude or anyone
+else. `--trace` reads transcript files that Claude Code already stores on
+your disk, embeds them locally, and writes ten floats to a local file. It is
+off unless you run it. Pin a specific project with
+`BONSAI_TRACE_GLOB="~/.claude/projects/<your-project>/*.jsonl"`.
+
 ## Verifying without a window
 
 ```sh

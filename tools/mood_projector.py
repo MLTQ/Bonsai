@@ -29,7 +29,12 @@ import numpy as np
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONTROL = os.path.join(REPO, "weights", "control.json")
 ANCHORS_FILE = os.path.join(REPO, "weights", "anchors_shoggoth.json")
-TRANSCRIPT_GLOB = os.path.expanduser("~/.claude/projects/-Users-max-Code-Bonsai/*.jsonl")
+# Default: whatever Claude Code is doing most recently on this machine, any project.
+# Override with $BONSAI_TRACE_GLOB to pin a specific project's transcripts.
+TRANSCRIPT_GLOB = os.environ.get(
+    "BONSAI_TRACE_GLOB",
+    os.path.expanduser("~/.claude/projects/*/*.jsonl"),
+)
 
 # The semantic field of each anchor — includes dev-session language on purpose.
 PHRASES = {
