@@ -31,7 +31,7 @@ FIRE_RATE = 0.5
 POOL_SIZE = 256
 BATCH = 8
 DAMAGE_N = 2
-CHUNK = 8  # rollout steps per checkpoint segment
+CHUNK = 8  # rollout steps per checkpoint segment; overridable via --chunk
 
 
 class NCA3D(nn.Module):
@@ -97,7 +97,7 @@ def damage(x):
     g = x.shape[2]
     zz, yy, xx = torch.meshgrid(*(torch.arange(g, device=x.device),) * 3, indexing="ij")
     for i in range(n):
-        r = np.random.uniform(4, 9)
+        r = np.random.uniform(4, 9) * (g / 32.0)  # wound size scales with the body
         cz, cy, cx = (np.random.uniform(g * 0.25, g * 0.75) for _ in range(3))
         mask = (((xx - cx) ** 2 + (yy - cy) ** 2 + (zz - cz) ** 2) > r ** 2).float()
         x[i] *= mask
@@ -115,7 +115,9 @@ def export(model, path):
         model.w2.bias.detach().cpu().numpy().astype("<f4").tofile(f)
 
 
-def save_preview(model, device, path, steps=200):
+def save_preview(model, device, path, steps=None):
+    if steps is None:
+        steps = int(200 * max(1.0, GRID3 / 32.0))  # bigger bodies take longer to grow
     """Grow from seed, save front max-weighted projection."""
     from PIL import Image
 
@@ -134,12 +136,18 @@ def save_preview(model, device, path, steps=200):
 
 
 def main():
+    global POOL_SIZE, BATCH, CHUNK
     ap = argparse.ArgumentParser()
     ap.add_argument("--iters", type=int, default=20000)
     ap.add_argument("--out", default="../weights/bonsai3d.nca")
+    ap.add_argument("--batch", type=int, default=BATCH)
+    ap.add_argument("--pool", type=int, default=POOL_SIZE)
+    ap.add_argument("--chunk", type=int, default=CHUNK)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else
                     ("mps" if torch.backends.mps.is_available() else "cpu"))
     args = ap.parse_args()
+    POOL_SIZE, BATCH, CHUNK = args.pool, args.batch, args.chunk
+    print(f"grid {GRID3}^3, pool {POOL_SIZE}, batch {BATCH}, chunk {CHUNK}", flush=True)
 
     device = torch.device(args.device)
     torch.manual_seed(0)

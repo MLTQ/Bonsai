@@ -9,6 +9,11 @@ import UniformTypeIdentifiers
 /// `--render-seq outdir count stride [weights]` — warm up, then dump an animation
 /// frame every `stride` steps (used to build verification GIFs of the cyclic NCA).
 enum RenderTest {
+    /// Volumetric grid edge for headless runs ($BONSAI_GRID3, default 32).
+    private static func envGrid() -> Int {
+        Int(ProcessInfo.processInfo.environment["BONSAI_GRID3"] ?? "32") ?? 32
+    }
+
     private static func makeSim(weightsPath: String?) -> NCASimulation? {
         let path = weightsPath ?? NCAWeights.defaultPath()
         guard let path else {
@@ -76,9 +81,10 @@ enum RenderTest {
         guard let path = weightsPath,
               let device = MTLCreateSystemDefaultDevice(),
               let weights = try? NCAWeights.load(from: path),
-              let sim = NCASimulation3D(device: device, weights: weights,
-                                        seed: path.contains("bonsai3d")
-                                            ? (16, 10, 16) : nil)
+              let sim = NCASimulation3D(
+                  device: device, weights: weights, grid: envGrid(),
+                  seed: path.contains("bonsai3d")
+                      ? (envGrid() / 2, envGrid() / 3, envGrid() / 2) : nil)
         else {
             FileHandle.standardError.write(Data("failed to init 3D simulation\n".utf8))
             return 1
@@ -115,8 +121,10 @@ enum RenderTest {
         guard let path = weightsPath,
               let device = MTLCreateSystemDefaultDevice(),
               let weights = try? NCAWeights.load(from: path),
-              let sim = NCASimulation3D(device: device, weights: weights,
-                                        seed: path.contains("bonsai3d") ? (16, 10, 16) : nil)
+              let sim = NCASimulation3D(
+                  device: device, weights: weights, grid: envGrid(),
+                  seed: path.contains("bonsai3d")
+                      ? (envGrid() / 2, envGrid() / 3, envGrid() / 2) : nil)
         else {
             FileHandle.standardError.write(Data("failed to init 3D simulation\n".utf8))
             return 1
