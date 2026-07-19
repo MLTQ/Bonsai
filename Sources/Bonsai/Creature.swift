@@ -12,6 +12,8 @@ struct Creature {
     var volumetric: Bool = false
     /// Seed voxel for volumetric creatures (must match the trainer's seed position).
     var seed3D: (x: Int, y: Int, z: Int)? = nil
+    /// Voxel grid edge for volumetric creatures (weights are grid-agnostic; this isn't).
+    var grid3D: Int = 32
 
     static let registry: [Creature] = [
         Creature(name: "Bonsai", fileName: "bonsai.nca", renderStyle: 0, makeBehavior: { nil }),
@@ -26,6 +28,8 @@ struct Creature {
                  makeBehavior: { nil }, volumetric: true),
         Creature(name: "Shoggoth Mk. IV", fileName: "shoggoth3d_manifold.nca", renderStyle: 0,
                  makeBehavior: { nil }, volumetric: true),
+        Creature(name: "Shoggoth 64", fileName: "shoggoth3d_64.nca", renderStyle: 0,
+                 makeBehavior: { nil }, volumetric: true, grid3D: 64),
     ]
 
     var path: String? {

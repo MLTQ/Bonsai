@@ -50,6 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if creature.volumetric {
             guard let sim3D = NCASimulation3D(device: device, weights: weights,
+                                              grid: creature.grid3D,
                                               seed: creature.seed3D) else {
                 fatalErrorAlert("Failed to init 3D simulation for '\(creature.name)'")
                 return
