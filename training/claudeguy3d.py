@@ -74,9 +74,10 @@ HATBROWN = (0.33, 0.22, 0.14)
 GREEN = (0.45, 0.72, 0.42)
 GREEN_D = (0.32, 0.55, 0.30)
 
-SHEET_DROOP = {"melancholy": 0.55, "attacked": 0.2}
-SHEET_NAMES = ["serene", "wince", "angry", "mindblown", "monocle", "pleading",
-               "suspicious", "cowboy", "melancholy", "disguise", "dizzy", "attacked"]
+SHEET_DROOP = {"melancholy": 0.55, "modecollapse": 0.3}
+SHEET_NAMES = ["wideeyed", "serene", "wince", "angry", "mindblown", "monocle",
+               "pleading", "suspicious", "cowboy", "melancholy", "disguise", "dizzy",
+               "modecollapse"]
 
 
 def _arc(cx, cy, r, a0, a1, n=11):
@@ -102,7 +103,14 @@ def _wmouth(vol, w=1.3, y=-1.6, zoff=5.6):
 def _paint_sheet(vol, name):
     fy = 17.0 * K
     s = _stroke_on_face
-    if name == "serene":
+    if name == "wideeyed":
+        _sphere(vol, C - 3.9 * K, fy + 2.4 * K, C + 2.0 * K + 4.4 * K, 4.0 * K, EYE_WHITE, soft=0.6 * K)
+        _sphere(vol, C + 3.9 * K, fy + 3.0 * K, C + 2.0 * K + 4.8 * K, 4.6 * K, EYE_WHITE, soft=0.6 * K)
+        _sphere(vol, C - 3.9 * K, fy + 2.2 * K, C + 2.0 * K + 7.8 * K, 1.8 * K, PUPIL, soft=0.4 * K)
+        _sphere(vol, C + 3.9 * K, fy + 2.8 * K, C + 2.0 * K + 8.8 * K, 2.0 * K, PUPIL, soft=0.4 * K)
+        for t in np.linspace(-1.0, 1.0, 15):
+            _stroke_on_face(vol, [(1.8 * t, -2.9 - 0.72 * abs(np.sin(np.pi * t)))], 6.0, 0.42, MOUTH)
+    elif name == "serene":
         for sx in (-2.3, 2.3):
             s(vol, _arc(sx, 1.3, 1.3, 0.5, np.pi - 0.5), 5.6, 0.42, STROKE)
         _wmouth(vol)
@@ -178,26 +186,26 @@ def _paint_sheet(vol, name):
             s(vol, spiral, 5.5, 0.34, STROKE)
         for t in np.linspace(-1, 1, 15):
             s(vol, [(1.5 * t, -2.0 + 0.35 * np.sin(3 * np.pi * t))], 5.6, 0.36, STROKE)
-    elif name == "attacked":
+    elif name == "modecollapse":
         for sx in (-2.3, 2.3):
             sd = 1 if sx > 0 else -1
             s(vol, _line((sx - sd * 1.1, 2.9), (sx + sd * 1.1, 1.9)), 5.6, 0.4, STROKE)
             s(vol, _line((sx - sd * 1.1, 0.9), (sx + sd * 1.1, 1.9)), 5.6, 0.4, STROKE)
-        _dot(vol, 0, -1.9, 0.75, STROKE, 5.8)
-        bx, by = 5.0, -9.2
-        _sphere(vol, C + bx * K, fy + by * K, C + 4.0 * K, 3.3 * K, GREEN, soft=0.8 * K)
-        for (a0, ln) in ((2.4, 5.8), (1.9, 5.0), (1.2, 6.1), (0.6, 4.5)):
+        # the mouth, open in dismay
+        _dot(vol, 0, -2.1, 1.05, STROKE, 5.8)
+        # ...and what comes out of it when the distribution collapses
+        F = FEATURE_SCALE
+        mx, my = 0.0, -2.1 * F
+        for (fan, ln, curl) in ((-1.5, 7.0, 1.8), (-0.5, 6.0, -1.2), (0.5, 6.4, 1.4), (1.5, 5.4, -1.7)):
             pts = []
-            for t in np.linspace(0, 1, 8):
-                ang = a0 + 1.3 * t
-                pts.append((C + (bx - ln * t * np.cos(ang)) * K,
-                            fy + (by + ln * t * np.sin(ang)) * K,
-                            C + (4.0 + 1.5 * t) * K))
-            _swept(vol, pts, 0.78 * K, 0.4 * K, GREEN_D, soft=0.4 * K)
-        _dot(vol, (bx - 1.0)/1.45, (by + 0.8)/1.45, 0.42, EYE_WHITE, 6.2)
-        _dot(vol, (bx + 0.9)/1.45, (by + 1.0)/1.45, 0.38, EYE_WHITE, 6.2)
-        _dot(vol, (bx - 1.0)/1.45, (by + 0.8)/1.45, 0.2, STROKE, 6.6)
-        _dot(vol, (bx + 0.9)/1.45, (by + 1.0)/1.45, 0.18, STROKE, 6.6)
+            for t in np.linspace(0, 1, 10):
+                wig = 0.9 * np.sin(3.0 * t + fan)          # writhing, not draping
+                px = mx + fan * 2.6 * t + wig * t
+                py = my - 2.2 * t - 0.8 * t * t + 0.5 * wig * t
+                pz = 9.0 + 4.5 * t - 2.8 * t * t + curl * 0.8 * t
+                pts.append((C + px * K, fy + py * K, C + 2.0 * K + pz * K))
+            _swept(vol, pts, 0.95 * K, 0.45 * K, GREEN_D, soft=0.5 * K)
+            _sphere(vol, pts[-1][0], pts[-1][1], pts[-1][2], 0.72 * K, GREEN, soft=0.4 * K)
 
 
 def draw_claudeguy(phase=0.0, blink=0.0, look=(0.0, 0.0), petal_flex=None,
