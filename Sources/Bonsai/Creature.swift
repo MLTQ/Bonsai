@@ -30,6 +30,8 @@ struct Creature {
                  makeBehavior: { nil }, volumetric: true),
         Creature(name: "Shoggoth 64", fileName: "shoggoth3d_64.nca", renderStyle: 0,
                  makeBehavior: { nil }, volumetric: true, grid3D: 64),
+        Creature(name: "Moss Spirit", fileName: "moss_spirit.nca", renderStyle: 0,
+                 makeBehavior: { nil }),
     ]
 
     var path: String? {
