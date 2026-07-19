@@ -31,7 +31,7 @@ struct Creature {
         Creature(name: "Shoggoth 64", fileName: "shoggoth3d_64.nca", renderStyle: 0,
                  makeBehavior: { nil }, volumetric: true, grid3D: 64),
         Creature(name: "Moss Spirit", fileName: "moss_spirit.nca", renderStyle: 0,
-                 makeBehavior: { nil }),
+                 makeBehavior: { StateBehavior() }),
     ]
 
     var path: String? {
@@ -169,6 +169,56 @@ final class ManifoldBehavior: CreatureBehavior {
             return arr.map { Float(min(max($0, 0), 1)) }
         }
         return nil
+    }
+}
+
+/// Two-state metamorphosis creature (the werewolf pattern): calm by default,
+/// transforms when the control channel's mood lands near an upset anchor —
+/// which is exactly what the trace daemon writes when the LLM is struggling.
+final class StateBehavior: CreatureBehavior {
+    private let anchorFile = AnchorFile.load()
+    private var rage: Float = 0
+    private var lastControlCheck = Date.distantPast
+    private var controlMTime: Date?
+
+    func cond(step: UInt32) -> (Float, Float, Float, Float) {
+        (rage, 0, 0, 0)
+    }
+
+    func tick(sim: NCASimulation, window: NSWindow?) {
+        let now = Date()
+        guard now.timeIntervalSince(lastControlCheck) > 1.0 else { return }
+        lastControlCheck = now
+        guard let dir = NCAWeights.weightsDir(),
+              let attrs = try? FileManager.default.attributesOfItem(atPath: dir + "/control.json"),
+              let mtime = attrs[.modificationDate] as? Date else { return }
+        if let seen = controlMTime, mtime <= seen { return }
+        controlMTime = mtime
+        guard let data = FileManager.default.contents(atPath: dir + "/control.json"),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return }
+        if let name = obj["anchor"] as? String {
+            rage = ["agitated", "dread", "manic"].contains(name) ? 1 : 0
+            return
+        }
+        guard let arr = obj["z"] as? [Double], let anchors = anchorFile?.anchors else { return }
+        // nearest mood anchor decides the form
+        var bestName = ""
+        var bestDist = Double.infinity
+        for (name, az) in anchors {
+            var d = 0.0
+            let n = min(arr.count, az.count)
+            for i in 0..<n {
+                let diff = arr[i] - Double(az[i])
+                d += diff * diff
+            }
+            if d < bestDist {
+                bestDist = d
+                bestName = name
+            }
+        }
+        let best = (bestName, bestDist)
+        rage = ["agitated", "dread", "manic"].contains(best.0) ? 1 : 0
     }
 }
 

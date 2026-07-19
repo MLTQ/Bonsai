@@ -34,9 +34,10 @@ enum RenderTest {
                 return (sin(theta), cos(theta), 1.0, 0.0)
             }
         } else if weights.cond == 1 {
-            // Clockless (autonomous) creature: only the behavior flag, held ON.
-            // Any cycling seen in a sequence render is the automaton keeping its own time.
-            sim.condProvider = { _ in (1.0, 0.0, 0.0, 0.0) }
+            // Single-flag creature (clockless or state-attractor). $BONSAI_STATE picks
+            // the state for headless renders (default 1).
+            let flag = Float(ProcessInfo.processInfo.environment["BONSAI_STATE"] ?? "1") ?? 1
+            sim.condProvider = { _ in (flag, 0.0, 0.0, 0.0) }
         }
         if weights.zdim > 0 {
             // Manifold creature: pick z via $BONSAI_ANCHOR (name) or $BONSAI_Z (csv).

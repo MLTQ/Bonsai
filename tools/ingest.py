@@ -39,7 +39,7 @@ def _premul(rgba):
     return out
 
 
-def _key_white(img, threshold=238, soft=26):
+def _key_white(img, threshold=228, soft=25):
     """Near-white background -> transparency, with a soft edge band."""
     import numpy as np
     from PIL import Image
