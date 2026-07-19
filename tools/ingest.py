@@ -161,20 +161,70 @@ def ingest_meshcycle(args):
     print(f"3d cycle {frames.shape} from {len(paths)} poses -> {args.out}")
 
 
+
+def synth_cycle(img_rgba, frames=12):
+    """One still -> a closed micro-cycle via integer-harmonic affine warps:
+    breathing scale, gentle bob, slight sway. Loop closure by construction."""
+    import numpy as np
+    from PIL import Image
+
+    w, h = img_rgba.size
+    out = []
+    for f in range(frames):
+        ph = 2 * np.pi * f / frames
+        scale = 1.0 + 0.030 * np.sin(ph)
+        bob = 0.014 * h * np.sin(ph + np.pi / 2)
+        sway = 2.2 * np.sin(ph)  # degrees
+        frame = img_rgba.rotate(sway, resample=Image.BICUBIC, center=(w / 2, h * 0.75))
+        sw, sh = int(w * scale), int(h * (2 - scale) ** 0.5 * scale ** 0.5)
+        frame = frame.resize((sw, max(sh, 1)), Image.BICUBIC)
+        canvas = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        canvas.paste(frame, ((w - sw) // 2, int((h - sh) / 2 + bob)), frame)
+        out.append(canvas)
+    return out
+
+
+def ingest_states(args):
+    """Manifest json {state_name: image_path} -> multi-behavior cycle npz.
+    Each state still becomes a warp-synthesized closed cycle; states are ordered
+    and named so trainers/apps can map behavior indices to labels."""
+    import json as _json
+
+    with open(args.input) as f:
+        manifest = _json.load(f)
+    names = list(manifest)
+    frames = np.zeros((len(names), args.frames, GRID2, GRID2, 4), np.float32)
+    for b, name in enumerate(names):
+        from PIL import Image
+        img = Image.open(manifest[name]).convert("RGBA")
+        if args.key_white:
+            img = _key_white(img)
+        for f, warped in enumerate(synth_cycle(img, args.frames)):
+            tmp = "/tmp/_bonsai_state_frame.png"
+            warped.save(tmp)
+            frames[b, f] = load_image(tmp, GRID2)
+    np.savez_compressed(args.out, kind="2d_cycle", frames=frames.astype(np.float16),
+                        state_names=np.array(names))
+    print(f"states {names}: {frames.shape} -> {args.out}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name, fn in (("image", ingest_image), ("sheet", ingest_sheet),
-                     ("mesh", ingest_mesh), ("meshcycle", ingest_meshcycle)):
+                     ("mesh", ingest_mesh), ("meshcycle", ingest_meshcycle),
+                     ("states", ingest_states)):
         p = sub.add_parser(name)
         p.add_argument("input")
         p.add_argument("--out", default="creature.npz")
-        if name in ("image", "sheet"):
+        if name in ("image", "sheet", "states"):
             p.add_argument("--key-white", action="store_true",
                            help="convert near-white background to transparency")
         if name == "sheet":
             p.add_argument("--frames", type=int, default=12)
             p.add_argument("--behaviors", type=int, default=1)
+        if name == "states":
+            p.add_argument("--frames", type=int, default=12)
         p.set_defaults(fn=fn)
     args = ap.parse_args()
     args.fn(args)

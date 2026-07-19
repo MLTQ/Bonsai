@@ -161,10 +161,23 @@ def main():
     ap.add_argument("--device", default="mps" if torch.backends.mps.is_available() else "cpu")
     ap.add_argument("--init", default=None, help="warm-start from an exported .nca")
     ap.add_argument("--lr", type=float, default=2e-3)
+    ap.add_argument("--target", default=None,
+                    help="ingested 2d_cycle .npz (tools/ingest.py states/sheet)")
     args = ap.parse_args()
-    _load_creature(args.creature)
-    if args.out is None:
-        args.out = f"../weights/{args.creature}.nca"
+    global BEHAVIORS, FRAMES, GRID, make_frames
+    if args.target:
+        _npz = np.load(args.target, allow_pickle=True)
+        assert str(_npz["kind"]) == "2d_cycle", "expected a 2d_cycle npz"
+        _frames_np = _npz["frames"].astype(np.float32)
+        BEHAVIORS, FRAMES, GRID = _frames_np.shape[0], _frames_np.shape[1], _frames_np.shape[2]
+        assert BEHAVIORS <= 2, "binary behavior flag supports 2 states; use the manifold trainer for more"
+        make_frames = lambda: _frames_np
+        if args.out is None:
+            args.out = "../weights/ingested_cycle.nca"
+    else:
+        _load_creature(args.creature)
+        if args.out is None:
+            args.out = f"../weights/{args.creature}.nca"
 
     device = torch.device(args.device)
     torch.manual_seed(0)
