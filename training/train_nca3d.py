@@ -143,6 +143,8 @@ def main():
     ap.add_argument("--batch", type=int, default=BATCH)
     ap.add_argument("--pool", type=int, default=POOL_SIZE)
     ap.add_argument("--chunk", type=int, default=CHUNK)
+    ap.add_argument("--target", default=None,
+                    help="ingested creature .npz (tools/ingest.py) instead of the built-in art")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else
                     ("mps" if torch.backends.mps.is_available() else "cpu"))
     args = ap.parse_args()
@@ -153,7 +155,14 @@ def main():
     torch.manual_seed(0)
     np.random.seed(0)
 
-    target = torch.from_numpy(make_target3d()).permute(3, 0, 1, 2).unsqueeze(0).to(device)
+    if args.target:
+        data = np.load(args.target)
+        assert str(data["kind"]) == "3d", "expected a 3d target npz"
+        tgt_np = data["target"].astype(np.float32)
+        assert tgt_np.shape[0] == GRID3, f"target grid {tgt_np.shape[0]} != BONSAI_GRID3 {GRID3}"
+        target = torch.from_numpy(tgt_np).permute(3, 0, 1, 2).unsqueeze(0).to(device)
+    else:
+        target = torch.from_numpy(make_target3d()).permute(3, 0, 1, 2).unsqueeze(0).to(device)
     model = NCA3D().to(device)
     opt = torch.optim.Adam(model.parameters(), lr=2e-3)
     sched = torch.optim.lr_scheduler.MultiStepLR(opt, milestones=[6000, 14000], gamma=0.3)

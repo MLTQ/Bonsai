@@ -107,6 +107,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--iters", type=int, default=8000)
     ap.add_argument("--out", default="../weights/bonsai.nca")
+    ap.add_argument("--target", default=None,
+                    help="ingested creature .npz (tools/ingest.py) instead of the built-in art")
     ap.add_argument("--device", default="mps" if torch.backends.mps.is_available() else "cpu")
     args = ap.parse_args()
 
@@ -114,7 +116,12 @@ def main():
     torch.manual_seed(0)
     np.random.seed(0)
 
-    target = torch.from_numpy(make_target()).permute(2, 0, 1).unsqueeze(0).to(device)
+    if args.target:
+        data = np.load(args.target)
+        assert str(data["kind"]) == "2d", "expected a 2d target npz"
+        target = torch.from_numpy(data["target"].astype(np.float32)).permute(2, 0, 1).unsqueeze(0).to(device)
+    else:
+        target = torch.from_numpy(make_target()).permute(2, 0, 1).unsqueeze(0).to(device)
     model = NCA().to(device)
     opt = torch.optim.Adam(model.parameters(), lr=2e-3)
     sched = torch.optim.lr_scheduler.MultiStepLR(opt, milestones=[2000], gamma=0.1)
