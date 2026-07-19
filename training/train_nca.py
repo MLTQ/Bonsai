@@ -110,6 +110,8 @@ def main():
     ap.add_argument("--target", default=None,
                     help="ingested creature .npz (tools/ingest.py) instead of the built-in art")
     ap.add_argument("--device", default="mps" if torch.backends.mps.is_available() else "cpu")
+    ap.add_argument("--fused", action="store_true",
+                    help="Triton fused step (CUDA only; see fused_step.py)")
     args = ap.parse_args()
 
     device = torch.device(args.device)
@@ -141,8 +143,16 @@ def main():
             if it > 500:
                 batch[-DAMAGE_N:] = damage(batch[-DAMAGE_N:])
 
-        for _ in range(np.random.randint(64, 97)):
-            batch = model(batch)
+        if args.fused:
+            from fused_step import fused_nca_step
+            for s in range(np.random.randint(64, 97)):
+                batch = fused_nca_step(
+                    batch, model.w1.weight.reshape(HIDDEN, CH * 3), model.w1.bias,
+                    model.w2.weight.reshape(CH, HIDDEN), model.w2.bias,
+                    seed=it, step=s, fire_rate=FIRE_RATE, clamp=None)
+        else:
+            for _ in range(np.random.randint(64, 97)):
+                batch = model(batch)
 
         loss = ((batch[:, :4] - target) ** 2).mean()
         opt.zero_grad()

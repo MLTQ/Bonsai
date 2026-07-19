@@ -75,7 +75,26 @@ class ManifoldNCA3D(nn.Module):
         life = (pre_life & self.alive(x)).float()
         return (x * life).clamp(-8.0, 8.0)
 
-    def rollout(self, x, theta0, z, steps):
+    fused = False  # Triton fused step (CUDA); set from --fused
+
+    def rollout(self, x, theta0, z, steps, seed=0):
+        if self.fused:
+            # Fused path replaces checkpointing outright: the fused Function
+            # saves only each step's 16-ch input state and recomputes in
+            # backward (fire mask regenerated from counter-based RNG).
+            from fused_step import fused_nca_step
+            gamma, beta = self.film(z).chunk(2, dim=1)
+            gamma = torch.tanh(gamma)  # bounded gain — non-negotiable
+            w1 = self.w1.weight.reshape(HIDDEN, CH * 4 + 2)
+            w2 = self.w2.weight.reshape(CH, HIDDEN)
+            ths = theta0[None, :] + torch.arange(int(steps), device=x.device)[:, None] * OMEGA
+            conds = torch.stack([ths.sin(), ths.cos()], dim=2)  # (T, B, 2)
+            for i in range(int(steps)):
+                x = fused_nca_step(x, w1, self.w1.bias, w2, self.w2.bias,
+                                   cond=conds[i], gamma=gamma, beta=beta,
+                                   seed=seed, step=i, fire_rate=FIRE_RATE, clamp=8.0)
+            return x
+
         def run_chunk(x0, th0, n):
             for i in range(int(n)):
                 x0 = self.forward(x0, th0 + i * OMEGA, z)
@@ -179,6 +198,8 @@ def main():
     ap.add_argument("--corpus", default="corpus_shoggoth3d.npz")
     ap.add_argument("--out", default="shoggoth3d_manifold.nca")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    ap.add_argument("--fused", action="store_true",
+                    help="Triton fused step (CUDA only; see fused_step.py)")
     args = ap.parse_args()
 
     device = torch.device(args.device)
@@ -188,6 +209,7 @@ def main():
     corpus = Corpus(args.corpus, device)
     print(f"corpus: {corpus.n} volumetric cycles, device {device}", flush=True)
     model = ManifoldNCA3D().to(device)
+    model.fused = args.fused
     base_params = [p for n, p in model.named_parameters() if not n.startswith("film")]
     opt = torch.optim.Adam([
         {"params": base_params, "lr": 2e-3},
@@ -226,7 +248,7 @@ def main():
         z = corpus.z_at(zidx)
         T = int(np.random.randint(48, 73))
         x.requires_grad_(True)
-        out = model.rollout(x, theta, z, T)
+        out = model.rollout(x, theta, z, T, seed=it)
         loss = ((out[:, :4] - corpus.target_at(zidx, theta + T * OMEGA)) ** 2).mean()
 
         if not torch.isfinite(loss):

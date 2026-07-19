@@ -67,10 +67,26 @@ class CyclicNCA3D(nn.Module):
 
     use_checkpoint = True
     step_fn = None  # optionally a torch.compile'd wrapper around forward
+    fused = False   # Triton fused step (CUDA); set from --fused
 
-    def rollout(self, x, theta0, beh, steps):
+    def rollout(self, x, theta0, beh, steps, seed=0):
         """Rollout; theta advances OMEGA per step. Checkpointed in CHUNK segments
         unless use_checkpoint is False (viable on 80GB cards, kills recompute)."""
+        if self.fused:
+            # Fused path replaces checkpointing: per-step 16-ch input save +
+            # exact recompute in backward (counter-based fire RNG).
+            from fused_step import fused_nca_step
+            w1 = self.w1.weight.reshape(HIDDEN, CH * 4 + COND)
+            w2 = self.w2.weight.reshape(CH, HIDDEN)
+            ths = theta0[None, :] + torch.arange(int(steps), device=x.device)[:, None] * OMEGA
+            conds = torch.stack(
+                [ths.sin(), ths.cos(), beh.float()[None, :].expand(ths.shape)], dim=2)
+            for i in range(int(steps)):
+                x = fused_nca_step(x, w1, self.w1.bias, w2, self.w2.bias,
+                                   cond=conds[i], seed=seed, step=i,
+                                   fire_rate=FIRE_RATE, clamp=8.0)
+            return x
+
         fwd = self.step_fn if self.step_fn is not None else self.forward
 
         def run_chunk(x0, th0, n):
@@ -190,6 +206,8 @@ def main():
     ap.add_argument("--init", default=None, help="warm-start from an exported .nca")
     ap.add_argument("--compile", action="store_true",
                     help="torch.compile(reduce-overhead): fuse + CUDA-graph each step")
+    ap.add_argument("--fused", action="store_true",
+                    help="Triton fused step (CUDA only; see fused_step.py)")
     ap.add_argument("--no-ckpt", action="store_true",
                     help="disable gradient checkpointing (needs ~big VRAM; kills recompute)")
     ap.add_argument("--fixed-t", type=int, default=0,
@@ -210,6 +228,7 @@ def main():
         load_nc3c(model, args.init)
         print(f"warm-started from {args.init}", flush=True)
     model.use_checkpoint = not args.no_ckpt
+    model.fused = args.fused
     if args.compile:
         model.step_fn = torch.compile(model.forward, mode="max-autotune-no-cudagraphs")
     opt = torch.optim.Adam(model.parameters(), lr=2e-3)
@@ -242,7 +261,7 @@ def main():
 
         T = args.fixed_t if args.fixed_t else int(np.random.randint(48, 73))
         x.requires_grad_(True)
-        out = model.rollout(x, theta, beh, T)
+        out = model.rollout(x, theta, beh, T, seed=it)
         loss = ((out[:, :4] - target_at(frames_t, beh, theta + T * OMEGA)) ** 2).mean()
 
         if not torch.isfinite(loss):

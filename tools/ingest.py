@@ -201,16 +201,39 @@ def ingest_states(args):
     print(f"states {names}: {targets.shape} -> {args.out}")
 
 
+
+def ingest_constellation(args):
+    """Manifest {state: {"poses": [imgs], "transit": "walk"|"cycle"}} -> npz.
+    Every mood is a constellation of semistable poses; the trainer makes each
+    pose unstable toward its siblings so the creature glides, never rests."""
+    import json as _json
+
+    with open(args.input) as f:
+        manifest = _json.load(f)
+    names, all_poses, pose_state, transits = [], [], [], []
+    for s, (name, spec) in enumerate(manifest.items()):
+        names.append(name)
+        transits.append(spec.get("transit", "walk"))
+        for p in spec["poses"]:
+            all_poses.append(load_image(p, GRID2, key_white=args.key_white))
+            pose_state.append(s)
+    np.savez_compressed(args.out, kind="2d_constellation",
+                        poses=np.stack(all_poses), pose_state=np.array(pose_state),
+                        transits=np.array(transits), state_names=np.array(names))
+    print(f"constellation: {len(all_poses)} poses, states {names} -> {args.out}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name, fn in (("image", ingest_image), ("sheet", ingest_sheet),
                      ("mesh", ingest_mesh), ("meshcycle", ingest_meshcycle),
-                     ("states", ingest_states)):
+                     ("states", ingest_states),
+                     ("constellation", ingest_constellation)):
         p = sub.add_parser(name)
         p.add_argument("input")
         p.add_argument("--out", default="creature.npz")
-        if name in ("image", "sheet", "states"):
+        if name in ("image", "sheet", "states", "constellation"):
             p.add_argument("--key-white", action="store_true",
                            help="convert near-white background to transparency")
         if name == "sheet":

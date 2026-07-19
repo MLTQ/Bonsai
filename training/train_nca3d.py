@@ -67,8 +67,20 @@ class NCA3D(nn.Module):
         life = (pre_life & self.alive(x)).float()
         return (x * life).clamp(-8.0, 8.0)
 
-    def rollout(self, x, steps):
-        """Checkpointed rollout: recompute chunks in backward instead of storing them."""
+    fused = False  # Triton fused step (CUDA); set from --fused
+
+    def rollout(self, x, steps, seed=0):
+        """Checkpointed rollout: recompute chunks in backward instead of storing them.
+        Fused mode replaces checkpointing (per-step input-state save + recompute)."""
+        if self.fused:
+            from fused_step import fused_nca_step
+            w1 = self.w1.weight.reshape(HIDDEN, CH * 4)
+            w2 = self.w2.weight.reshape(CH, HIDDEN)
+            for i in range(int(steps)):
+                x = fused_nca_step(x, w1, self.w1.bias, w2, self.w2.bias,
+                                   seed=seed, step=i, fire_rate=FIRE_RATE, clamp=8.0)
+            return x
+
         def run_chunk(x0, n):
             for _ in range(int(n)):
                 x0 = self.forward(x0)
@@ -147,6 +159,8 @@ def main():
                     help="ingested creature .npz (tools/ingest.py) instead of the built-in art")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else
                     ("mps" if torch.backends.mps.is_available() else "cpu"))
+    ap.add_argument("--fused", action="store_true",
+                    help="Triton fused step (CUDA only; see fused_step.py)")
     args = ap.parse_args()
     POOL_SIZE, BATCH, CHUNK = args.pool, args.batch, args.chunk
     print(f"grid {GRID3}^3, pool {POOL_SIZE}, batch {BATCH}, chunk {CHUNK}", flush=True)
@@ -164,6 +178,7 @@ def main():
     else:
         target = torch.from_numpy(make_target3d()).permute(3, 0, 1, 2).unsqueeze(0).to(device)
     model = NCA3D().to(device)
+    model.fused = args.fused
     opt = torch.optim.Adam(model.parameters(), lr=2e-3)
     sched = torch.optim.lr_scheduler.MultiStepLR(opt, milestones=[6000, 14000], gamma=0.3)
 
@@ -184,7 +199,7 @@ def main():
                 batch[-DAMAGE_N:] = damage(batch[-DAMAGE_N:])
 
         batch.requires_grad_(True)
-        out = model.rollout(batch, int(np.random.randint(48, 73)))
+        out = model.rollout(batch, int(np.random.randint(48, 73)), seed=it)
         loss = ((out[:, :4] - target) ** 2).mean()
 
         if not torch.isfinite(loss):
