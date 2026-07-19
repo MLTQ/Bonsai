@@ -23,7 +23,7 @@ POOL_SIZE = 1024
 BATCH = 8
 DAMAGE_N = 2
 SWITCH_P = 0.12
-DWELL_P = 0.35   # fraction of rollouts that target the NEAREST pole: arrive and sharpen
+DWELL_P = 0.10   # low, and proximity-gated below: polish on arrival, never park
 
 
 def main():
@@ -74,8 +74,9 @@ def main():
                 d = ((x[b:b+1, :4] - poses_t[own]) ** 2).mean(dim=(1, 2, 3))
                 near = int(d.argmin())
                 near_global = int(own[near])
-                if np.random.rand() < DWELL_P:
-                    nxt = near_global                    # dwell: crisp up where you are
+                arrived = float(d.min()) < 0.004        # already essentially at the pose
+                if arrived and np.random.rand() < DWELL_P:
+                    nxt = near_global                    # brief polish, then depart
                 elif near_global in successors:          # directed graph wins:
                     outs = successors[near_global]       # waypoints, hysteresis loops
                     nxt = outs[np.random.randint(len(outs))]
@@ -100,7 +101,7 @@ def main():
             if it > 500:
                 x[-DAMAGE_N:] = damage(x[-DAMAGE_N:])
 
-        for _ in range(int(np.random.randint(36, 61))):
+        for _ in range(int(np.random.randint(24, 49))):
             x = model(x, st)
         loss = ((x[:, :4] - tgt) ** 2).mean()
 
