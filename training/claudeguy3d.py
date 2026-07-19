@@ -61,8 +61,142 @@ EXPRESSIONS = {
 }
 
 
+
+
+# --- Sheet-accurate expression painter (small, clustered features; sheet ratios) ---
+STROKE = (0.12, 0.10, 0.10)
+TAN = (0.82, 0.77, 0.60)
+HATBROWN = (0.33, 0.22, 0.14)
+GREEN = (0.45, 0.72, 0.42)
+GREEN_D = (0.32, 0.55, 0.30)
+
+SHEET_DROOP = {"melancholy": 0.55, "attacked": 0.2}
+SHEET_NAMES = ["serene", "wince", "angry", "mindblown", "monocle", "pleading",
+               "suspicious", "cowboy", "melancholy", "disguise", "dizzy", "attacked"]
+
+
+def _arc(cx, cy, r, a0, a1, n=11):
+    return [(cx + r * np.cos(a), cy + r * np.sin(a)) for a in np.linspace(a0, a1, n)]
+
+
+def _line(p0, p1, n=9):
+    return [(p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t)
+            for t in np.linspace(0, 1, n)]
+
+
+def _dot(vol, ox, oy, r, color=STROKE, zoff=5.6):
+    fy = 17.0 * K
+    _sphere(vol, C + ox * K, fy + oy * K, C + 2.0 * K + zoff * K, r * K, color, soft=0.3 * K)
+
+
+def _wmouth(vol, w=1.3, y=-1.6, zoff=5.6):
+    for t in np.linspace(-1, 1, 13):
+        _stroke_on_face(vol, [(w * t * 2.0 / 2, y - 0.55 * abs(np.sin(np.pi * t)))], zoff, 0.38, STROKE)
+
+
+def _paint_sheet(vol, name):
+    fy = 17.0 * K
+    s = _stroke_on_face
+    if name == "serene":
+        for sx in (-2.3, 2.3):
+            s(vol, _arc(sx, 1.3, 1.3, 0.5, np.pi - 0.5), 5.6, 0.42, STROKE)
+        _wmouth(vol)
+    elif name == "wince":
+        for sx in (-2.3, 2.3):
+            sd = 1 if sx > 0 else -1
+            s(vol, _line((sx - sd * 1.1, 2.8), (sx + sd * 1.1, 1.8)), 5.6, 0.4, STROKE)
+            s(vol, _line((sx - sd * 1.1, 0.8), (sx + sd * 1.1, 1.8)), 5.6, 0.4, STROKE)
+        for t in np.linspace(-1, 1, 15):
+            s(vol, [(1.5 * t, -1.8 + 0.35 * np.sin(3 * np.pi * t))], 5.6, 0.36, STROKE)
+    elif name == "angry":
+        _dot(vol, -2.0, 1.5, 0.62); _dot(vol, 2.0, 1.5, 0.62)
+        s(vol, _line((-3.0, 3.4), (-1.2, 2.6)), 5.5, 0.42, STROKE)
+        s(vol, _line((3.0, 3.4), (1.2, 2.6)), 5.5, 0.42, STROKE)
+        s(vol, _arc(0, -3.2, 1.5, 0.45, np.pi - 0.45), 5.6, 0.4, STROKE)
+    elif name == "mindblown":
+        _dot(vol, -2.2, 0.2, 0.6); _dot(vol, 2.2, 0.2, 0.6)
+        _dot(vol, 0, -2.0, 1.0, STROKE, 5.8)
+        for i in range(6):  # jagged crack line across the upper face
+            s(vol, [(-3.6 + i * 1.45, 2.6 + (0.7 if i % 2 else -0.2))], 5.2, 0.5, STROKE)
+        _sphere(vol, C, fy + 6.0 * K, C + 3.0 * K, 1.3 * K, TAN, soft=0.6 * K)
+        _sphere(vol, C, fy + 8.2 * K, C + 3.0 * K, 1.5 * K, TAN, soft=0.6 * K)
+        for (px, py, pr) in ((0, 10.2, 3.0), (-2.7, 8.9, 2.2), (2.7, 9.1, 2.3), (0, 12.4, 2.1)):
+            _sphere(vol, C + px * K, fy + py * K, C + 3.0 * K, pr * K, TAN, soft=0.9 * K)
+        for (px, py) in ((-7.5, 9.0), (7.5, 8.5), (-9.0, 5.5), (9.0, 6.0)):
+            _sphere(vol, C + px * K, fy + py * K, C + 2.0 * K, 0.9 * K, PETAL, soft=0.5 * K)
+    elif name == "monocle":
+        _dot(vol, -2.0, 1.7, 0.62); _dot(vol, 2.0, 1.7, 0.62)
+        s(vol, _arc(2.0, 1.7, 1.75, 0, 2 * np.pi, 21), 5.4, 0.34, STROKE)
+        s(vol, _line((2.6, 0.2), (4.4, -3.2), 11), 5.2, 0.28, STROKE)
+        s(vol, _line((-3.0, 3.1), (-1.2, 2.8)), 5.5, 0.4, STROKE)
+        s(vol, _line((-1.0, -1.9), (1.0, -1.9)), 5.6, 0.38, STROKE)
+    elif name == "pleading":
+        for sx in (-2.2, 2.2):
+            _dot(vol, sx, 2.0, 1.15)
+            _dot(vol, sx - 0.45, 2.5, 0.4, EYE_WHITE, 6.3)
+        s(vol, _arc(-2.3, 3.9, 1.4, 0.5, np.pi - 0.7), 5.4, 0.4, STROKE)
+        s(vol, _arc(2.3, 3.9, 1.4, 0.7, np.pi - 0.5), 5.4, 0.4, STROKE)
+        s(vol, _arc(0, -3.1, 1.0, 0.5, np.pi - 0.5), 5.6, 0.36, STROKE)
+    elif name == "suspicious":
+        _dot(vol, -2.5, 1.8, 0.62); _dot(vol, 1.5, 1.8, 0.62)
+        s(vol, _line((-3.2, 3.3), (-1.6, 3.5)), 5.5, 0.4, STROKE)
+        s(vol, _line((1.0, 3.6), (2.8, 3.2)), 5.5, 0.4, STROKE)
+        nose = [(0.3 + t * 3.6, 0.5 - t * 1.1) for t in np.linspace(0, 1, 10)]
+        for i, (nx, ny) in enumerate(nose):
+            tt = i / 9.0
+            _dot(vol, nx, ny, 0.75 - 0.33 * tt, (0.93, 0.87, 0.76), 5.8 + 2.2 * tt)
+        s(vol, _line((-1.6, -2.0), (0.4, -2.1)), 5.6, 0.38, STROKE)
+    elif name == "cowboy":
+        _dot(vol, -2.0, 1.9, 0.62); _dot(vol, 2.0, 1.9, 0.62)
+        _wmouth(vol)
+        _ellipsoid(vol, C, fy + 7.0 * K, C + 2.2 * K, 6.9 * K, 0.8 * K, 4.4 * K, HATBROWN, soft=0.5 * K)
+        _ellipsoid(vol, C, fy + 9.0 * K, C + 2.2 * K, 3.3 * K, 2.3 * K, 3.1 * K, HATBROWN, soft=0.6 * K)
+        _sphere(vol, C - 6.6 * K, fy + 7.9 * K, C + 2.2 * K, 0.85 * K, HATBROWN, soft=0.4 * K)
+        _sphere(vol, C + 6.6 * K, fy + 7.9 * K, C + 2.2 * K, 0.85 * K, HATBROWN, soft=0.4 * K)
+    elif name == "melancholy":
+        for sx in (-2.3, 2.3):
+            s(vol, _arc(sx, 2.1, 1.35, np.pi + 0.5, 2 * np.pi - 0.5), 5.5, 0.42, STROKE)
+        s(vol, _arc(-2.3, 3.6, 1.2, 0.6, np.pi - 0.8, 7), 5.3, 0.36, STROKE)
+        s(vol, _arc(2.3, 3.6, 1.2, 0.8, np.pi - 0.6, 7), 5.3, 0.36, STROKE)
+        s(vol, _arc(0, -3.4, 1.4, 0.5, np.pi - 0.5), 5.6, 0.4, STROKE)
+    elif name == "disguise":
+        for sx in (-2.2, 2.2):
+            s(vol, _arc(sx, 1.7, 1.6, 0, 2 * np.pi, 19), 5.5, 0.34, STROKE)
+            s(vol, _arc(sx, 3.7, 1.35, 0.4, np.pi - 0.4), 5.4, 0.55, STROKE)
+        s(vol, _line((-0.6, 1.9), (0.6, 1.9), 5), 5.5, 0.3, STROKE)
+        _dot(vol, 0, -0.4, 0.7, (0.90, 0.82, 0.70), 6.2)
+        _ellipsoid(vol, C, fy - 1.9 * K, C + 8.0 * K, 2.6 * K, 0.85 * K, 0.7 * K, (0.25, 0.22, 0.20), soft=0.4 * K)
+    elif name == "dizzy":
+        for sx in (-2.2, 2.2):
+            spiral = [((sx + (0.3 + 1.15 * t) * np.cos(3.5 * np.pi * t)),
+                       (1.7 + (0.3 + 1.15 * t) * np.sin(3.5 * np.pi * t))) for t in np.linspace(0, 1, 19)]
+            s(vol, spiral, 5.5, 0.34, STROKE)
+        for t in np.linspace(-1, 1, 15):
+            s(vol, [(1.5 * t, -2.0 + 0.35 * np.sin(3 * np.pi * t))], 5.6, 0.36, STROKE)
+    elif name == "attacked":
+        for sx in (-2.3, 2.3):
+            sd = 1 if sx > 0 else -1
+            s(vol, _line((sx - sd * 1.1, 2.9), (sx + sd * 1.1, 1.9)), 5.6, 0.4, STROKE)
+            s(vol, _line((sx - sd * 1.1, 0.9), (sx + sd * 1.1, 1.9)), 5.6, 0.4, STROKE)
+        _dot(vol, 0, -1.9, 0.75, STROKE, 5.8)
+        bx, by = 4.6, -8.6
+        _sphere(vol, C + bx * K, fy + by * K, C + 4.0 * K, 2.4 * K, GREEN, soft=0.8 * K)
+        for (a0, ln) in ((2.4, 4.2), (1.9, 3.6), (1.2, 4.4), (0.6, 3.2)):
+            pts = []
+            for t in np.linspace(0, 1, 8):
+                ang = a0 + 1.3 * t
+                pts.append((C + (bx - ln * t * np.cos(ang)) * K,
+                            fy + (by + ln * t * np.sin(ang)) * K,
+                            C + (4.0 + 1.5 * t) * K))
+            _swept(vol, pts, 0.55 * K, 0.28 * K, GREEN_D, soft=0.4 * K)
+        _dot(vol, bx - 0.7, by + 0.6, 0.42, EYE_WHITE, 6.2)
+        _dot(vol, bx + 0.6, by + 0.7, 0.38, EYE_WHITE, 6.2)
+        _dot(vol, bx - 0.7, by + 0.6, 0.2, STROKE, 6.6)
+        _dot(vol, bx + 0.6, by + 0.7, 0.18, STROKE, 6.6)
+
+
 def draw_claudeguy(phase=0.0, blink=0.0, look=(0.0, 0.0), petal_flex=None,
-                   expression="neutral"):
+                   expression="neutral", spin=0.0, wiggle=0.0, sheet=None):
     """One volumetric frame. Faces +z. All animation inputs optional (static default).
     petal_flex: optional per-petal radial flex array (N_PETALS,) in [-1, 1].
     expression: key into EXPRESSIONS (overrides look; composes with blink/petal_flex)."""
@@ -71,7 +205,7 @@ def draw_claudeguy(phase=0.0, blink=0.0, look=(0.0, 0.0), petal_flex=None,
         petal_flex = np.zeros(N_PETALS)
     ex = EXPRESSIONS[expression]
     look = ex["look"] if expression != "neutral" else look
-    droop = ex["droop"]
+    droop = SHEET_DROOP.get(sheet, 0.0) if sheet else ex["droop"]
 
     fy = 17.0 * K          # face center height (32-units: y=17)
     fz = C + 2.0 * K       # face plane pushed toward the viewer
@@ -79,6 +213,8 @@ def draw_claudeguy(phase=0.0, blink=0.0, look=(0.0, 0.0), petal_flex=None,
     # --- Petal ring (XY plane, radiating around the face) -------------------
     for k in range(N_PETALS):
         ang = k * 2 * np.pi / N_PETALS + 0.13 * np.sin(k * 2.7)   # handmade jitter
+        ang += spin * phase                                # whole ring rotates, 1 rev/cycle
+        ang += wiggle * 0.3 * np.sin(phase * 2 + k * 1.1)  # back-and-forth waggle
         # deterministic per-petal irregularity: length and plumpness vary
         wob = np.sin(k * 4.9) * 0.5 + np.sin(k * 1.3) * 0.5
         length = (11.2 + 1.4 * wob + 1.2 * petal_flex[k]) * K
@@ -101,6 +237,12 @@ def draw_claudeguy(phase=0.0, blink=0.0, look=(0.0, 0.0), petal_flex=None,
 
     # --- Face: one clean circular disk (round from the front, domed in depth) --
     _ellipsoid(vol, C, fy, fz + 2.6 * K, 8.9 * K, 8.9 * K, 3.4 * K, FACE, soft=1.0 * K)
+
+    if sheet is not None:
+        _paint_sheet(vol, sheet)
+        small = vol.reshape(GRID3, SS, GRID3, SS, GRID3, SS, 4).mean(axis=(1, 3, 5))
+        small[..., :3] *= small[..., 3:4]
+        return np.ascontiguousarray(small.transpose(2, 1, 0, 3)).astype(np.float32)
 
     # --- Eyes, per expression -------------------------------------------------
     eo = 1.0 - blink

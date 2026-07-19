@@ -211,7 +211,7 @@ def main():
         print(f"warm-started from {args.init}", flush=True)
     model.use_checkpoint = not args.no_ckpt
     if args.compile:
-        model.step_fn = torch.compile(model.forward, mode="reduce-overhead")
+        model.step_fn = torch.compile(model.forward, mode="max-autotune-no-cudagraphs")
     opt = torch.optim.Adam(model.parameters(), lr=2e-3)
     sched = torch.optim.lr_scheduler.MultiStepLR(opt, milestones=[8000, 18000], gamma=0.3)
 
