@@ -131,3 +131,68 @@ both, and re-verify with a render-test before believing anything else.
 Every code file has a companion `.md` with its contracts. Read them before
 editing; update them after. That discipline is why six creatures got built in
 a day without the pipeline ever rotting.
+
+
+## 7. The asset pipeline (artists welcome, primitives optional)
+
+`tools/ingest.py` converts normal art into training targets; every trainer
+takes `--target creature.npz`:
+
+- `image sprite.png --key-white` → 2D static target (near-white backgrounds
+  become transparency; tune the threshold in `_key_white` if your background
+  is dingy — 228 works for diffusion-model white)
+- `sheet strip.png --frames 12 --behaviors 2` → 2D cycle frames
+- `mesh model.glb` → colored solid voxel target (vertex colors, face colors,
+  or textures; interiors filled; `BONSAI_GRID3` sets resolution)
+- `meshcycle poses_dir/` → volumetric cycle from posed exports
+  (Blender: pose 12 loop frames, export each as glTF — loop closure is on you)
+- `states manifest.json --key-white` → multi-state attractors (see §8)
+
+## 8. Multi-state creatures: the werewolf pattern
+
+States are **attractors**, not animations: each state is one still image, and
+all motion belongs to the NCA — shimmer within a state, learned metamorphosis
+between states. `train_states.py` trains a state flag with mid-life switches,
+so the transformation (calm moss ball → bramble beast) is a genuine conversion
+of the living body. Wire the flag to the mood channel (`StateBehavior` maps
+control anchors like *agitated* to the beast form) and your agent's frustration
+becomes the full moon.
+
+## 9. Creatures from prompts (diffusion front-end)
+
+The pipeline: generate → **review** → `ingest image --key-white` → train.
+Hard rules, written in a small amount of blood:
+
+- **Stylized/anime checkpoints only. Never a realism model.** Check the
+  filename; "realism" means realism.
+- **Non-human subjects only** for generated creatures.
+- **Review every image yourself before batching or ingesting.**
+
+Practical tricks: prompt for `white background, flat color, sticker style`;
+img2img from an approved canonical image preserves identity across states
+(strength ~0.5–0.65); models resist *pose* changes at low strength — guide
+them by transforming the **init image** (e.g. pre-rotate ±12° for a lean) and
+let generation repaint it naturally. The final asset is still pure diffusion
+output; nothing mechanical enters training.
+
+## 10. Steering, maps, and the trace daemon
+
+- `weights/control.json` is the universal steering socket:
+  `{"anchor": "dread"}` or `{"z": [...]}` at up to 4 Hz.
+- The **State Space… panel** shows each creature's actual space: UMAP
+  constellations for manifold creatures (`tools/make_statemap.py`), two
+  labeled islands for flag creatures. Dragging steers through the same socket.
+- `tools/mood_projector.py` maps text → mood (`--text`, `--watch feed`,
+  `--trace` for live Claude Code transcripts). Anchor phrase banks are in the
+  file; add vocabulary when a mood mishears you.
+
+## 11. Extra troubleshooting (continued from §5)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Creature grows on a gray slab | Background survived white-keying | Lower `_key_white` threshold below the bg's min-channel |
+| Generated "sleeping" creature has open eyes | img2img protecting composition | Raise strength + weight the tag, or accept and re-roll |
+| Generated poses won't lean/turn | Same | Transform the init image; let the model repaint |
+| 64³ organism becomes a cube at long horizons | Growth trained, containment not | Longer fixed rollouts (`--fixed-t 96`); it also self-cures with pool age |
+| torch.compile "CUDAGraphs overwritten" | reduce-overhead vs. chained steps + pools | `max-autotune-no-cudagraphs`, or don't compile — measure first; at 64³ you're compute-bound anyway |
+| Diffusion job OOMs a training run | Forgot to pin the GPU | `CUDA_VISIBLE_DEVICES=<uuid>` always, by UUID not index |
