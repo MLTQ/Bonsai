@@ -307,9 +307,24 @@ recurrence analysis over 600-step rollouts shows no stable period --- only a
 weak local minimum at the trained period --- indicating the distributed phase
 code decoheres, plausibly because stochastic per-cell firing injects phase
 noise faster than the learned coupling re-synchronizes it. The automaton
-retains \emph{that} it moves, not \emph{the} cycle. Stronger coupling
-mechanisms (explicit neighbor phase terms, reduced firing noise, longer
-curricula) are the obvious next experiments. MSE training softens precise
+retains \emph{that} it moves, not \emph{the} cycle.
+
+The resolution came from inverting the question (suggested by the first
+author): rather than teaching cells to keep time, make stillness impossible.
+\textbf{Heteroclinic cycling}: two pose targets under one conditioning flag,
+with the loss always directed at the pole \emph{opposite} the nearest —
+each pose trained unstable toward the other, in the spirit of winnerless
+competition \cite{rabinovich2008transient}. The result, on a
+diffusion-generated test creature with two lean poses: sustained, regular
+clockless oscillation (pole-occupancy reads
+\texttt{...LLLLLLLLRRRRRRRR...}), period $\approx 80$--$100$ automaton
+steps — a number appearing nowhere in code or conditioning, emerging from
+transit dynamics (roughly $2\times$ the training horizon). Phase-averaging
+collapse is structurally prevented: the cycle's mean is precisely where
+gradients point away from. The construction generalizes to directed pose
+graphs — waypointed gaits, wandering idle constellations, and hysteresis
+loops (non-palindromic directed cycles), making "never just an image" a
+trainable property. MSE training softens precise
 geometry --- fine for protoplasm, hostile to machined shapes; edge-weighted or
 perceptual losses are untested here. All results are single-seed, without
 ablations or quantitative animation metrics (a cycle-consistency measure ---
@@ -359,6 +374,11 @@ Automata.
 K.~Horibe, K.~Walker, S.~Risi.
 \newblock Regenerating Soft Robots Through Neural Cellular Automata.
 \newblock \emph{EuroGP}, 2021.
+
+\bibitem{rabinovich2008transient}
+M.~Rabinovich, R.~Huerta, P.~Varona, V.~Afraimovich.
+\newblock Transient Cognitive Dynamics, Metastability, and Decision Making.
+\newblock \emph{PLoS Computational Biology}, 2008.
 
 \bibitem{pajouheshgar2024mesh}
 E.~Pajouheshgar, Y.~Xu, A.~Mordvintsev, E.~Niklasson, T.~Zhang, S.~S\"usstrunk.
