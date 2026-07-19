@@ -45,7 +45,7 @@ struct NCAWeights {
         }
         guard data.count > 20 else { throw LoadError.badMagic }
         let magic = String(decoding: data.prefix(4), as: UTF8.self)
-        guard ["NCA1", "NCA2", "NCA3", "NC3D", "NC3C"].contains(magic) else {
+        guard ["NCA1", "NCA2", "NCA3", "NC3D", "NC3C", "NC3M"].contains(magic) else {
             throw LoadError.badMagic
         }
         let spatialDims = magic.hasPrefix("NC3") ? 3 : 2
@@ -68,7 +68,7 @@ struct NCAWeights {
             cond = i32(12)
             guard (0...4).contains(cond) else { throw LoadError.shapeMismatch("cond=\(cond)") }
             offset = 16
-        case "NCA3":
+        case "NCA3", "NC3M":
             zdim = i32(12)
             cond = 2  // sin/cos phase channels
             guard (1...16).contains(zdim) else { throw LoadError.shapeMismatch("zdim=\(zdim)") }

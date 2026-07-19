@@ -18,6 +18,7 @@ final class NCASimulation3D {
     private var tmp: MTLBuffer
     private var next: MTLBuffer
     private var weightsBuffer: MTLBuffer
+    private var filmBuffer: MTLBuffer
 
     private var fireRate: Float
     private var stepCounter: UInt32 = 0
@@ -25,6 +26,12 @@ final class NCASimulation3D {
     private let seed: (x: Int, y: Int, z: Int)
 
     let condCount: Int
+    let hiddenCount: Int
+    /// FiLM latent dimension (NC3M); when > 0, steer via `zTarget` / `setZ`.
+    let zdim: Int
+    private var filmMatrix: [Float] = []
+    private var zCurrent: [Float] = []
+    var zTarget: [Float] = []
     var condProvider: ((UInt32) -> (Float, Float, Float, Float))?
     /// Camera orbit angle (radians); the view layer animates this.
     var azimuth: Float = 0
@@ -54,13 +61,19 @@ final class NCASimulation3D {
         self.grid = grid
         self.fireRate = weights.fireRate
         self.condCount = weights.cond
+        self.hiddenCount = weights.hidden
+        self.zdim = weights.zdim
+        self.filmMatrix = weights.film
+        self.zCurrent = [Float](repeating: 0.5, count: weights.zdim)
+        self.zTarget = self.zCurrent
         self.seed = seed ?? (grid / 2, grid / 2, grid / 2)
 
         guard let queue = device.makeCommandQueue() else { return nil }
         self.queue = queue
 
         guard let library = try? device.makeLibrary(
-                  source: nca3dMetalSource(cond: weights.cond, hidden: weights.hidden),
+                  source: nca3dMetalSource(cond: weights.cond, hidden: weights.hidden,
+                                           useFilm: weights.zdim > 0),
                   options: nil),
               let stepFn = library.makeFunction(name: "nca3d_step"),
               let lifeFn = library.makeFunction(name: "nca3d_life"),
@@ -79,9 +92,12 @@ final class NCASimulation3D {
               let c = device.makeBuffer(length: stateBytes, options: .storageModeShared),
               let w = device.makeBuffer(bytes: weights.flat,
                                         length: weights.flat.count * MemoryLayout<Float>.size,
+                                        options: .storageModeShared),
+              let f = device.makeBuffer(length: max(2 * weights.hidden, 2) * MemoryLayout<Float>.size,
                                         options: .storageModeShared)
         else { return nil }
-        cur = a; tmp = b; next = c; weightsBuffer = w
+        cur = a; tmp = b; next = c; weightsBuffer = w; filmBuffer = f
+        refreshFilm()
 
         reseed()
     }
@@ -89,12 +105,36 @@ final class NCASimulation3D {
     @discardableResult
     func updateWeights(_ weights: NCAWeights) -> Bool {
         guard weights.spatialDims == 3, weights.cond == condCount,
+              weights.hidden == hiddenCount, weights.zdim == zdim,
               let w = device.makeBuffer(bytes: weights.flat,
                                         length: weights.flat.count * MemoryLayout<Float>.size,
                                         options: .storageModeShared) else { return false }
         weightsBuffer = w
         fireRate = weights.fireRate
+        filmMatrix = weights.film
+        refreshFilm()
         return true
+    }
+
+    /// Jump the latent immediately (headless tests / hard resets).
+    func setZ(_ z: [Float]) {
+        guard z.count == zdim else { return }
+        zCurrent = z
+        zTarget = z
+        refreshFilm()
+    }
+
+    /// gamma/beta = filmW·z + filmB on the CPU; gamma rows tanh-bounded (training parity).
+    private func refreshFilm() {
+        guard zdim > 0, filmMatrix.count == 2 * hiddenCount * zdim + 2 * hiddenCount else { return }
+        let ptr = filmBuffer.contents().bindMemory(to: Float.self, capacity: 2 * hiddenCount)
+        let biasBase = 2 * hiddenCount * zdim
+        for row in 0..<(2 * hiddenCount) {
+            var acc = filmMatrix[biasBase + row]
+            let rowBase = row * zdim
+            for j in 0..<zdim { acc += filmMatrix[rowBase + j] * zCurrent[j] }
+            ptr[row] = row < hiddenCount ? tanhf(acc) : acc
+        }
     }
 
     func reseed() {
@@ -159,6 +199,14 @@ final class NCASimulation3D {
     func step(count: Int, renderInto texture: MTLTexture? = nil) {
         guard let cmd = queue.makeCommandBuffer() else { return }
 
+        if zdim > 0, zCurrent != zTarget {
+            for j in 0..<zdim {
+                zCurrent[j] += (zTarget[j] - zCurrent[j]) * 0.04
+                if abs(zTarget[j] - zCurrent[j]) < 0.002 { zCurrent[j] = zTarget[j] }
+            }
+            refreshFilm()
+        }
+
         for _ in 0..<count {
             var uniforms = makeUniforms()
             pendingDamage = nil
@@ -169,6 +217,7 @@ final class NCASimulation3D {
             enc.setBuffer(tmp, offset: 0, index: 1)
             enc.setBuffer(weightsBuffer, offset: 0, index: 2)
             enc.setBytes(&uniforms, length: MemoryLayout<Uniforms3D>.stride, index: 3)
+            enc.setBuffer(filmBuffer, offset: 0, index: 4)
             dispatch3D(enc, stepPipeline)
             enc.endEncoding()
 

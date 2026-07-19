@@ -20,6 +20,13 @@ final class VoxelPetView: NSView {
     private var direction: CGFloat = 1
     private var nextEpisode = Date().addingTimeInterval(.random(in: 10...25))
 
+    // Manifold (zdim > 0): anchor autopilot + control.json steering, 3D edition.
+    private let anchorFile3D = AnchorFile.load(named: "anchors_shoggoth3d.json")
+    private var autopilotPausedUntil = Date.distantPast
+    private var nextDrift = Date().addingTimeInterval(.random(in: 20...60))
+    private var lastControlCheck = Date.distantPast
+    private var controlMTime: Date?
+
     var stepsPerTick = 2
     /// Idle camera drift (radians/tick). The creature always turns to be seen.
     var orbitRate: Float = 0.006
@@ -29,7 +36,9 @@ final class VoxelPetView: NSView {
         self.cyclic = cyclic
         super.init(frame: frame)
         wantsLayer = true
-        if cyclic {
+        if simulation.condCount >= 2 {
+            // Phase clock for cyclic (cond=3, +behavior flag) and manifold (cond=2)
+            // creatures alike; the shader reads only its compiled cond width.
             simulation.condProvider = { [weak self] step in
                 let theta = Float(step) * LainBehavior.omega
                 return (sin(theta), cos(theta), (self?.walking ?? false) ? 1.0 : 0.0, 0.0)
@@ -77,7 +86,8 @@ final class VoxelPetView: NSView {
     private func tick() {
         guard !paused else { return }
         sim.azimuth += orbitRate
-        if cyclic { walkTick() }
+        if sim.zdim > 0 { manifoldTick() }
+        if cyclic || sim.zdim > 0 { walkTick() }
         guard let drawable = metalLayer.nextDrawable() else {
             sim.step(count: stepsPerTick)
             return
@@ -86,9 +96,44 @@ final class VoxelPetView: NSView {
         drawable.present()
     }
 
+    private func manifoldTick() {
+        let now = Date()
+        if now.timeIntervalSince(lastControlCheck) > 1.0 {
+            lastControlCheck = now
+            if let z = readControl() {
+                sim.zTarget = z
+                autopilotPausedUntil = now.addingTimeInterval(300)
+            }
+        }
+        if now >= autopilotPausedUntil, now >= nextDrift,
+           let anchors = anchorFile3D?.anchors, let z = anchors.values.randomElement() {
+            sim.zTarget = z
+            nextDrift = now.addingTimeInterval(.random(in: 25...90))
+        }
+        // Walkness (z[0]) drives the Dock commute for manifold creatures.
+        walking = (sim.zTarget.first ?? 0) > 0.6
+    }
+
+    private func readControl() -> [Float]? {
+        guard let dir = NCAWeights.weightsDir() else { return nil }
+        let path = dir + "/control.json"
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+              let mtime = attrs[.modificationDate] as? Date else { return nil }
+        if let seen = controlMTime, mtime <= seen { return nil }
+        controlMTime = mtime
+        guard let data = FileManager.default.contents(atPath: path),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        if let name = obj["anchor"] as? String, let z = anchorFile3D?.anchors[name] { return z }
+        if let arr = obj["z"] as? [Double] { return arr.map { Float(min(max($0, 0), 1)) } }
+        return nil
+    }
+
     private func walkTick() {
         let now = Date()
-        if now >= nextEpisode {
+        // Pure cyclic creatures toggle walk episodes on a timer; manifold creatures'
+        // `walking` is set by manifoldTick from the walkness factor.
+        if sim.zdim == 0, now >= nextEpisode {
             walking.toggle()
             if walking, let window, let screen = window.screen ?? NSScreen.main {
                 direction = window.frame.midX > screen.visibleFrame.midX ? -1 : 1

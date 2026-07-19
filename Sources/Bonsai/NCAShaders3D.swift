@@ -7,7 +7,7 @@
 /// volume index order (z, y, x) -> flat idx ((z*G + y)*G + x)*CH + c,
 /// life = alive(pre) AND alive(post) with 27-neighborhood maxpool alpha > 0.1,
 /// per-voxel stochastic fire, state clamped to +-8.
-func nca3dMetalSource(cond: Int, hidden: Int) -> String {
+func nca3dMetalSource(cond: Int, hidden: Int, useFilm: Bool = false) -> String {
     """
     #include <metal_stdlib>
     using namespace metal;
@@ -17,6 +17,7 @@ func nca3dMetalSource(cond: Int, hidden: Int) -> String {
     constant int COND = \(cond);
     constant int PIN = PCH + COND;
     constant int HIDDEN = \(hidden);
+    constant bool USE_FILM = \(useFilm);
 
     struct Uniforms3D {
         int   grid;
@@ -54,6 +55,7 @@ func nca3dMetalSource(cond: Int, hidden: Int) -> String {
                            device float *dst            [[buffer(1)]],
                            const device float *weights  [[buffer(2)]],
                            constant Uniforms3D &u       [[buffer(3)]],
+                           const device float *film     [[buffer(4)]],   // gamma[H], beta[H]
                            uint3 gid [[thread_position_in_grid]]) {
         int G = u.grid;
         if ((int)gid.x >= G || (int)gid.y >= G || (int)gid.z >= G) return;
@@ -96,6 +98,7 @@ func nca3dMetalSource(cond: Int, hidden: Int) -> String {
             float acc = b1[h];
             const device float *row = w1 + h * PIN;
             for (int i = 0; i < PIN; i++) acc += row[i] * percept[i];
+            if (USE_FILM) acc = acc * (1.0f + film[h]) + film[HIDDEN + h];
             hid[h] = max(acc, 0.0f);
         }
 

@@ -83,10 +83,19 @@ enum RenderTest {
             FileHandle.standardError.write(Data("failed to init 3D simulation\n".utf8))
             return 1
         }
-        if weights.cond >= 3 {
+        if weights.cond >= 2 {
             sim.condProvider = { step in
                 let theta = Float(step) * LainBehavior.omega
                 return (sin(theta), cos(theta), 1.0, 0.0)
+            }
+        }
+        if weights.zdim > 0 {
+            let env = ProcessInfo.processInfo.environment
+            if let csv = env["BONSAI_Z"] {
+                sim.setZ(csv.split(separator: ",").compactMap { Float($0) })
+            } else if let z = AnchorFile.load(named: "anchors_shoggoth3d.json")?
+                        .anchors[env["BONSAI_ANCHOR"] ?? "walk"] {
+                sim.setZ(z)
             }
         }
         sim.azimuth = azimuthDegrees * .pi / 180
@@ -112,10 +121,19 @@ enum RenderTest {
             FileHandle.standardError.write(Data("failed to init 3D simulation\n".utf8))
             return 1
         }
-        if weights.cond >= 3 {
+        if weights.cond >= 2 {
             sim.condProvider = { step in
                 let theta = Float(step) * LainBehavior.omega
                 return (sin(theta), cos(theta), 1.0, 0.0)
+            }
+        }
+        if weights.zdim > 0 {
+            let env = ProcessInfo.processInfo.environment
+            if let csv = env["BONSAI_Z"] {
+                sim.setZ(csv.split(separator: ",").compactMap { Float($0) })
+            } else if let z = AnchorFile.load(named: "anchors_shoggoth3d.json")?
+                        .anchors[env["BONSAI_ANCHOR"] ?? "walk"] {
+                sim.setZ(z)
             }
         }
         try? FileManager.default.createDirectory(atPath: outDir, withIntermediateDirectories: true)

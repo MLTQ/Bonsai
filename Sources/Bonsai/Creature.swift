@@ -24,6 +24,8 @@ struct Creature {
                  makeBehavior: { nil }, volumetric: true, seed3D: (16, 10, 16)),
         Creature(name: "Shoggoth Mk. III", fileName: "shoggoth3d.nca", renderStyle: 0,
                  makeBehavior: { nil }, volumetric: true),
+        Creature(name: "Shoggoth Mk. IV", fileName: "shoggoth3d_manifold.nca", renderStyle: 0,
+                 makeBehavior: { nil }, volumetric: true),
     ]
 
     var path: String? {
@@ -79,9 +81,9 @@ struct AnchorFile: Decodable {
     let z_spec: [String]
     let anchors: [String: [Float]]
 
-    static func load() -> AnchorFile? {
+    static func load(named name: String = "anchors_shoggoth.json") -> AnchorFile? {
         guard let dir = NCAWeights.weightsDir(),
-              let data = FileManager.default.contents(atPath: dir + "/anchors_shoggoth.json")
+              let data = FileManager.default.contents(atPath: dir + "/" + name)
         else { return nil }
         return try? JSONDecoder().decode(AnchorFile.self, from: data)
     }
