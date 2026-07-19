@@ -38,6 +38,10 @@ def main():
     poses = data["poses"].astype(np.float32)        # (P, G, G, 4) all poses, flat
     pose_state = data["pose_state"].astype(np.int64)  # (P,) owning state per pose
     transits = list(data["transits"])                # per-state "walk" | "cycle"
+    edges = data["edges"] if "edges" in data.files else np.zeros((0, 2), int)
+    successors = {}                                   # directed graph, if provided
+    for a, b in edges:
+        successors.setdefault(int(a), []).append(int(b))
     n_states = int(pose_state.max()) + 1
     assert n_states == 2, "cond=1 flag: 2 states (manifold trainer for more)"
     train_states.GRID = poses.shape[1]
@@ -68,7 +72,11 @@ def main():
                 own = state_pose_idx[int(st[b])]
                 d = ((x[b:b+1, :4] - poses_t[own]) ** 2).mean(dim=(1, 2, 3))
                 near = int(d.argmin())
-                if transits[int(st[b])] == "cycle" and len(own) > 1:
+                near_global = int(own[near])
+                if near_global in successors:            # directed graph wins:
+                    outs = successors[near_global]       # waypoints, hysteresis loops
+                    nxt = outs[np.random.randint(len(outs))]
+                elif transits[int(st[b])] == "cycle" and len(own) > 1:
                     nxt = own[(near + 1) % len(own)]
                 elif len(own) > 1:  # walk: any other star in the constellation
                     others = [p for k, p in enumerate(own) if k != near]

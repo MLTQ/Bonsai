@@ -85,26 +85,6 @@ def _mix_seed(seed, step):
     return (seed * 1000003 ^ step * 2654435761) & 0x7FFFFFFF
 
 
-def _tap_coeff(dims, k, dz, dy, dx):
-    """Python-time tap coefficient for kernel k at neighbor offset — baked
-    into the kernels as compile-time constants. Must mirror perception_taps."""
-    if dims == 2:
-        sm = {0: 2.0, 1: 1.0, -1: 1.0}
-        if k == 0:
-            return 1.0 if (dy == 0 and dx == 0) else 0.0
-        if k == 1:
-            return dx * sm[dy] / 8.0
-        return dy * sm[dx] / 8.0
-    sm = {0: 2.0, 1: 1.0, -1: 1.0}
-    if k == 0:
-        return 1.0 if (dz == 0 and dy == 0 and dx == 0) else 0.0
-    if k == 1:
-        return dx * sm[dy] * sm[dz] / 32.0
-    if k == 2:
-        return dy * sm[dx] * sm[dz] / 32.0
-    return dz * sm[dx] * sm[dy] / 32.0
-
-
 # --------------------------------------------------------------------------
 # Weight-layout cache (rebuilt when the param version bumps)
 # --------------------------------------------------------------------------

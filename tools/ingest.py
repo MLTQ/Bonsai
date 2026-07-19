@@ -210,16 +210,21 @@ def ingest_constellation(args):
 
     with open(args.input) as f:
         manifest = _json.load(f)
-    names, all_poses, pose_state, transits = [], [], [], []
+    names, all_poses, pose_state, transits, edge_list = [], [], [], [], []
     for s, (name, spec) in enumerate(manifest.items()):
         names.append(name)
         transits.append(spec.get("transit", "walk"))
+        base = len(all_poses)
         for p in spec["poses"]:
             all_poses.append(load_image(p, GRID2, key_white=args.key_white))
             pose_state.append(s)
+        # optional directed edges (local indices); enables waypoints + hysteresis
+        for (a, b) in spec.get("edges", []):
+            edge_list.append((base + a, base + b))
     np.savez_compressed(args.out, kind="2d_constellation",
                         poses=np.stack(all_poses), pose_state=np.array(pose_state),
-                        transits=np.array(transits), state_names=np.array(names))
+                        transits=np.array(transits), state_names=np.array(names),
+                        edges=np.array(edge_list if edge_list else np.zeros((0, 2), int)))
     print(f"constellation: {len(all_poses)} poses, states {names} -> {args.out}")
 
 
