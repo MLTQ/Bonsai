@@ -40,6 +40,9 @@ def main():
     ap.add_argument("--pool", type=int, default=POOL_SIZE)
     ap.add_argument("--hidden", type=int, default=None,
                     help="update-rule width (Swift parses it from the header; 128 default)")
+    ap.add_argument("--waypoints", type=int, default=4,
+                    help="targets advanced along the graph within one rollout "
+                         "(1 = old single-hop behavior)")
     ap.add_argument("--growth-p", type=float, default=0.2,
                     help="fraction of rollouts using a 4x horizon (seed growth, persistence)")
     ap.add_argument("--dwell", type=float, default=None,
@@ -105,38 +108,50 @@ def main():
             st_cpu = st.cpu().numpy()
             switch_cpu = switch.cpu().numpy()
 
-            nxt = np.empty(BATCH, dtype=np.int64)
+            def step_from(pose_idx, state):
+                """One hop along the graph (or the state's transit rule)."""
+                if pose_idx in successors:
+                    outs = successors[pose_idx]
+                    return int(outs[np.random.randint(len(outs))])
+                own = state_pose_idx[state]
+                if len(own) == 1:
+                    return int(own[0])
+                k = int(np.where(own == pose_idx)[0][0])
+                if transits[state] == "cycle":
+                    return int(own[(k + 1) % len(own)])
+                others = [p for j, p in enumerate(own) if j != k]
+                return int(others[np.random.randint(len(others))])
+
+            # Waypoint CHAIN: the target advances along the graph *during* the
+            # rollout, so the whole trajectory is supervised (not just its end).
+            K = max(1, args.waypoints)
+            chain = np.empty((BATCH, K), dtype=np.int64)
             for b in range(BATCH):
-                ng = int(near_cpu[b])
+                cur = int(near_cpu[b])
+                s = int(st_cpu[b])
                 if switch_cpu[b]:
-                    nxt[b] = ng                      # metamorphosis: become the new form
-                    continue
-                if near_d[b] < 0.004 and np.random.rand() < DWELL_P:
-                    nxt[b] = ng                      # brief arrival polish
-                elif ng in successors:
-                    outs = successors[ng]
-                    nxt[b] = outs[np.random.randint(len(outs))]
+                    chain[b, 0] = cur              # metamorphosis: become the new form
+                    start = 1
                 else:
-                    own = state_pose_idx[int(st_cpu[b])]
-                    k = int(np.where(own == ng)[0][0])
-                    if transits[int(st_cpu[b])] == "cycle" and len(own) > 1:
-                        nxt[b] = own[(k + 1) % len(own)]
-                    elif len(own) > 1:
-                        others = [p for j, p in enumerate(own) if j != k]
-                        nxt[b] = others[np.random.randint(len(others))]
-                    else:
-                        nxt[b] = own[0]
-            tgt = poses_t[torch.from_numpy(nxt).to(device)]
+                    start = 0
+                for j in range(start, K):
+                    cur = step_from(cur, s)
+                    chain[b, j] = cur
+            chain_t = torch.from_numpy(chain).to(device)
 
             if it > 500:
                 x[-DAMAGE_N:] = damage(x[-DAMAGE_N:])
 
-        steps = int(np.random.randint(args.horizon[0], args.horizon[1] + 1))
-        if np.random.rand() < args.growth_p:
-            steps *= 4          # seeds need long rollouts to grow at all
-        for _ in range(steps):
-            x = model(x, st)
-        loss = ((x[:, :4] - tgt) ** 2).mean()
+        K = chain_t.shape[1]
+        seg_scale = 4 if np.random.rand() < args.growth_p else 1   # occasional long haul
+        loss = torch.zeros((), device=device)
+        for j in range(K):
+            seg = int(np.random.randint(args.horizon[0], args.horizon[1] + 1)) * seg_scale
+            for _ in range(seg):
+                x = model(x, st)
+            w = 0.6 + 0.4 * (j + 1) / K            # later waypoints weigh a little more
+            loss = loss + w * ((x[:, :4] - poses_t[chain_t[:, j]]) ** 2).mean()
+        loss = loss / K
 
         if not torch.isfinite(loss):
             opt.zero_grad(); continue
