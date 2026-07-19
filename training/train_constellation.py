@@ -67,6 +67,7 @@ def main():
     device = torch.device(args.device)
     torch.manual_seed(0); np.random.seed(0)
     poses_t = torch.from_numpy(poses).permute(0, 3, 1, 2).to(device)  # (P,4,G,G)
+    pose_state_t = torch.from_numpy(pose_state).to(device)
     state_pose_idx = [np.where(pose_state == s)[0] for s in range(n_states)]
 
     model = StateNCA().to(device)
@@ -84,37 +85,47 @@ def main():
         st = pool_state[idx].clone()
 
         with torch.no_grad():
-            # nearest pose within each sample's own state
-            tgt = torch.empty(BATCH, 4, train_states.GRID, train_states.GRID, device=device)
-            for b in range(BATCH):
-                own = state_pose_idx[int(st[b])]
-                d = ((x[b:b+1, :4] - poses_t[own]) ** 2).mean(dim=(1, 2, 3))
-                near = int(d.argmin())
-                near_global = int(own[near])
-                arrived = float(d.min()) < 0.004        # already essentially at the pose
-                if arrived and np.random.rand() < DWELL_P:
-                    nxt = near_global                    # brief polish, then depart
-                elif near_global in successors:          # directed graph wins:
-                    outs = successors[near_global]       # waypoints, hysteresis loops
-                    nxt = outs[np.random.randint(len(outs))]
-                elif transits[int(st[b])] == "cycle" and len(own) > 1:
-                    nxt = own[(near + 1) % len(own)]
-                elif len(own) > 1:  # walk: any other star in the constellation
-                    others = [p for k, p in enumerate(own) if k != near]
-                    nxt = others[np.random.randint(len(others))]
-                else:
-                    nxt = own[0]
-                tgt[b] = poses_t[nxt]
+            # Seed reset + state switches first, so target selection sees final states.
             x[0] = make_seed(1, device)[0]
             st[0] = torch.randint(0, n_states, (1,), device=device)
             switch = torch.rand(BATCH, device=device) < SWITCH_P
             switch[0] = False
             st[switch] = 1 - st[switch]
-            # switched samples aim at their new state's nearest star instead
-            for b in torch.nonzero(switch).flatten().tolist():
-                own = state_pose_idx[int(st[b])]
-                d = ((x[b:b+1, :4] - poses_t[own]) ** 2).mean(dim=(1, 2, 3))
-                tgt[b] = poses_t[own[int(d.argmin())]]
+
+            # All-pairs distances in ONE kernel instead of a per-sample Python loop
+            # (that loop forced ~70 host syncs per iteration and left the GPU idle).
+            d_all = ((x[:, None, :4] - poses_t[None]) ** 2).mean(dim=(2, 3, 4))   # (B,P)
+            wrong_state = pose_state_t[None, :] != st[:, None]
+            d_masked = d_all.masked_fill(wrong_state, float("inf"))
+            near_idx = d_masked.argmin(dim=1)
+            near_cpu = near_idx.cpu().numpy()
+            near_d = d_masked.gather(1, near_idx[:, None]).squeeze(1).cpu().numpy()
+            st_cpu = st.cpu().numpy()
+            switch_cpu = switch.cpu().numpy()
+
+            nxt = np.empty(BATCH, dtype=np.int64)
+            for b in range(BATCH):
+                ng = int(near_cpu[b])
+                if switch_cpu[b]:
+                    nxt[b] = ng                      # metamorphosis: become the new form
+                    continue
+                if near_d[b] < 0.004 and np.random.rand() < DWELL_P:
+                    nxt[b] = ng                      # brief arrival polish
+                elif ng in successors:
+                    outs = successors[ng]
+                    nxt[b] = outs[np.random.randint(len(outs))]
+                else:
+                    own = state_pose_idx[int(st_cpu[b])]
+                    k = int(np.where(own == ng)[0][0])
+                    if transits[int(st_cpu[b])] == "cycle" and len(own) > 1:
+                        nxt[b] = own[(k + 1) % len(own)]
+                    elif len(own) > 1:
+                        others = [p for j, p in enumerate(own) if j != k]
+                        nxt[b] = others[np.random.randint(len(others))]
+                    else:
+                        nxt[b] = own[0]
+            tgt = poses_t[torch.from_numpy(nxt).to(device)]
+
             if it > 500:
                 x[-DAMAGE_N:] = damage(x[-DAMAGE_N:])
 
