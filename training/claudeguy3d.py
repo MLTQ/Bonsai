@@ -39,11 +39,15 @@ def _ellipsoid(vol, cx, cy, cz, rx, ry, rz, color, soft=0.8):
     np.copyto(vol[..., 0:3], np.array(color, np.float32), where=a > 0.15)
 
 
+FEATURE_SCALE = 1.45  # Max: features were too small; scale offsets and radii together
+
+
 def _stroke_on_face(vol, pts2d, fz_off, r, color):
     """Sweep small spheres along 2D face-plane points [(x_off, y_off), ...]."""
+    F = FEATURE_SCALE
     fy = 17.0 * K
     for (ox, oy) in pts2d:
-        _sphere(vol, C + ox * K, fy + oy * K, C + 2.0 * K + fz_off * K, r * K, color, soft=0.3 * K)
+        _sphere(vol, C + ox * F * K, fy + oy * F * K, C + 2.0 * K + fz_off * K, r * F * K, color, soft=0.3 * K)
 
 
 # Expression presets, straight from the emotion anchor sheet.
@@ -85,8 +89,9 @@ def _line(p0, p1, n=9):
 
 
 def _dot(vol, ox, oy, r, color=STROKE, zoff=5.6):
+    F = FEATURE_SCALE
     fy = 17.0 * K
-    _sphere(vol, C + ox * K, fy + oy * K, C + 2.0 * K + zoff * K, r * K, color, soft=0.3 * K)
+    _sphere(vol, C + ox * F * K, fy + oy * F * K, C + 2.0 * K + zoff * K, r * F * K, color, soft=0.3 * K)
 
 
 def _wmouth(vol, w=1.3, y=-1.6, zoff=5.6):
@@ -118,12 +123,12 @@ def _paint_sheet(vol, name):
         _dot(vol, 0, -2.0, 1.0, STROKE, 5.8)
         for i in range(6):  # jagged crack line across the upper face
             s(vol, [(-3.6 + i * 1.45, 2.6 + (0.7 if i % 2 else -0.2))], 5.2, 0.5, STROKE)
-        _sphere(vol, C, fy + 6.0 * K, C + 3.0 * K, 1.3 * K, TAN, soft=0.6 * K)
-        _sphere(vol, C, fy + 8.2 * K, C + 3.0 * K, 1.5 * K, TAN, soft=0.6 * K)
-        for (px, py, pr) in ((0, 10.2, 3.0), (-2.7, 8.9, 2.2), (2.7, 9.1, 2.3), (0, 12.4, 2.1)):
+        _sphere(vol, C, fy + 6.6 * K, C + 3.0 * K, 1.7 * K, TAN, soft=0.6 * K)
+        _sphere(vol, C, fy + 8.4 * K, C + 3.0 * K, 2.0 * K, TAN, soft=0.6 * K)
+        for (px, py, pr) in ((0, 10.8, 3.4), (-3.6, 9.6, 2.6), (3.6, 9.8, 2.7), (0, 12.6, 2.3)):
             _sphere(vol, C + px * K, fy + py * K, C + 3.0 * K, pr * K, TAN, soft=0.9 * K)
-        for (px, py) in ((-7.5, 9.0), (7.5, 8.5), (-9.0, 5.5), (9.0, 6.0)):
-            _sphere(vol, C + px * K, fy + py * K, C + 2.0 * K, 0.9 * K, PETAL, soft=0.5 * K)
+        for (px, py) in ((-8.5, 10.0), (8.5, 9.6), (-10.5, 6.0), (10.5, 6.5)):
+            _sphere(vol, C + px * K, fy + py * K, C + 2.0 * K, 1.3 * K, PETAL, soft=0.5 * K)
     elif name == "monocle":
         _dot(vol, -2.0, 1.7, 0.62); _dot(vol, 2.0, 1.7, 0.62)
         s(vol, _arc(2.0, 1.7, 1.75, 0, 2 * np.pi, 21), 5.4, 0.34, STROKE)
@@ -149,10 +154,10 @@ def _paint_sheet(vol, name):
     elif name == "cowboy":
         _dot(vol, -2.0, 1.9, 0.62); _dot(vol, 2.0, 1.9, 0.62)
         _wmouth(vol)
-        _ellipsoid(vol, C, fy + 7.0 * K, C + 2.2 * K, 6.9 * K, 0.8 * K, 4.4 * K, HATBROWN, soft=0.5 * K)
-        _ellipsoid(vol, C, fy + 9.0 * K, C + 2.2 * K, 3.3 * K, 2.3 * K, 3.1 * K, HATBROWN, soft=0.6 * K)
-        _sphere(vol, C - 6.6 * K, fy + 7.9 * K, C + 2.2 * K, 0.85 * K, HATBROWN, soft=0.4 * K)
-        _sphere(vol, C + 6.6 * K, fy + 7.9 * K, C + 2.2 * K, 0.85 * K, HATBROWN, soft=0.4 * K)
+        _ellipsoid(vol, C, fy + 8.2 * K, C + 2.2 * K, 9.6 * K, 1.1 * K, 6.0 * K, HATBROWN, soft=0.5 * K)
+        _ellipsoid(vol, C, fy + 11.0 * K, C + 2.2 * K, 4.6 * K, 3.2 * K, 4.2 * K, HATBROWN, soft=0.6 * K)
+        _sphere(vol, C - 9.2 * K, fy + 9.5 * K, C + 2.2 * K, 1.2 * K, HATBROWN, soft=0.4 * K)
+        _sphere(vol, C + 9.2 * K, fy + 9.5 * K, C + 2.2 * K, 1.2 * K, HATBROWN, soft=0.4 * K)
     elif name == "melancholy":
         for sx in (-2.3, 2.3):
             s(vol, _arc(sx, 2.1, 1.35, np.pi + 0.5, 2 * np.pi - 0.5), 5.5, 0.42, STROKE)
@@ -165,7 +170,7 @@ def _paint_sheet(vol, name):
             s(vol, _arc(sx, 3.7, 1.35, 0.4, np.pi - 0.4), 5.4, 0.55, STROKE)
         s(vol, _line((-0.6, 1.9), (0.6, 1.9), 5), 5.5, 0.3, STROKE)
         _dot(vol, 0, -0.4, 0.7, (0.90, 0.82, 0.70), 6.2)
-        _ellipsoid(vol, C, fy - 1.9 * K, C + 8.0 * K, 2.6 * K, 0.85 * K, 0.7 * K, (0.25, 0.22, 0.20), soft=0.4 * K)
+        _ellipsoid(vol, C, fy - 2.8 * K, C + 8.0 * K, 3.8 * K, 1.2 * K, 0.8 * K, (0.25, 0.22, 0.20), soft=0.4 * K)
     elif name == "dizzy":
         for sx in (-2.2, 2.2):
             spiral = [((sx + (0.3 + 1.15 * t) * np.cos(3.5 * np.pi * t)),
@@ -179,20 +184,20 @@ def _paint_sheet(vol, name):
             s(vol, _line((sx - sd * 1.1, 2.9), (sx + sd * 1.1, 1.9)), 5.6, 0.4, STROKE)
             s(vol, _line((sx - sd * 1.1, 0.9), (sx + sd * 1.1, 1.9)), 5.6, 0.4, STROKE)
         _dot(vol, 0, -1.9, 0.75, STROKE, 5.8)
-        bx, by = 4.6, -8.6
-        _sphere(vol, C + bx * K, fy + by * K, C + 4.0 * K, 2.4 * K, GREEN, soft=0.8 * K)
-        for (a0, ln) in ((2.4, 4.2), (1.9, 3.6), (1.2, 4.4), (0.6, 3.2)):
+        bx, by = 5.0, -9.2
+        _sphere(vol, C + bx * K, fy + by * K, C + 4.0 * K, 3.3 * K, GREEN, soft=0.8 * K)
+        for (a0, ln) in ((2.4, 5.8), (1.9, 5.0), (1.2, 6.1), (0.6, 4.5)):
             pts = []
             for t in np.linspace(0, 1, 8):
                 ang = a0 + 1.3 * t
                 pts.append((C + (bx - ln * t * np.cos(ang)) * K,
                             fy + (by + ln * t * np.sin(ang)) * K,
                             C + (4.0 + 1.5 * t) * K))
-            _swept(vol, pts, 0.55 * K, 0.28 * K, GREEN_D, soft=0.4 * K)
-        _dot(vol, bx - 0.7, by + 0.6, 0.42, EYE_WHITE, 6.2)
-        _dot(vol, bx + 0.6, by + 0.7, 0.38, EYE_WHITE, 6.2)
-        _dot(vol, bx - 0.7, by + 0.6, 0.2, STROKE, 6.6)
-        _dot(vol, bx + 0.6, by + 0.7, 0.18, STROKE, 6.6)
+            _swept(vol, pts, 0.78 * K, 0.4 * K, GREEN_D, soft=0.4 * K)
+        _dot(vol, (bx - 1.0)/1.45, (by + 0.8)/1.45, 0.42, EYE_WHITE, 6.2)
+        _dot(vol, (bx + 0.9)/1.45, (by + 1.0)/1.45, 0.38, EYE_WHITE, 6.2)
+        _dot(vol, (bx - 1.0)/1.45, (by + 0.8)/1.45, 0.2, STROKE, 6.6)
+        _dot(vol, (bx + 0.9)/1.45, (by + 1.0)/1.45, 0.18, STROKE, 6.6)
 
 
 def draw_claudeguy(phase=0.0, blink=0.0, look=(0.0, 0.0), petal_flex=None,
