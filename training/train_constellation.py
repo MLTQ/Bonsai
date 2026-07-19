@@ -23,6 +23,7 @@ POOL_SIZE = 1024
 BATCH = 8
 DAMAGE_N = 2
 SWITCH_P = 0.12
+DWELL_P = 0.35   # fraction of rollouts that target the NEAREST pole: arrive and sharpen
 
 
 def main():
@@ -73,7 +74,9 @@ def main():
                 d = ((x[b:b+1, :4] - poses_t[own]) ** 2).mean(dim=(1, 2, 3))
                 near = int(d.argmin())
                 near_global = int(own[near])
-                if near_global in successors:            # directed graph wins:
+                if np.random.rand() < DWELL_P:
+                    nxt = near_global                    # dwell: crisp up where you are
+                elif near_global in successors:          # directed graph wins:
                     outs = successors[near_global]       # waypoints, hysteresis loops
                     nxt = outs[np.random.randint(len(outs))]
                 elif transits[int(st[b])] == "cycle" and len(own) > 1:

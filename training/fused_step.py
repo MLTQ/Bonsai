@@ -498,8 +498,11 @@ class FusedNCAStep(torch.autograd.Function):
             w1t, w2t = _weights_t(w1, w2)
             percept_f = torch.empty(pch, p_total, device=dev)
             h_lin_f = torch.empty(hidden, p_total, device=dev)
+            # clamp=None: gates must see the RAW pre-clamp x_mid — the clamp
+            # gate |x_mid*life| <= 8 is vacuous on already-clamped values
+            # (gradient would leak at the boundary; eager blocks it there)
             x_mid = _launch_step(x, w1t, b1, w2t, b2, cond, gamma, beta,
-                                 seed_step, fire_rate, clamp, dims, cond_n, film,
+                                 seed_step, fire_rate, None, dims, cond_n, film,
                                  save_bufs=(percept_f, h_lin_f))
 
             # --- fused gates: life + clamp + fire -> g1, ddx ---
