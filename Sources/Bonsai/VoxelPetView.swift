@@ -98,7 +98,7 @@ final class VoxelPetView: NSView {
 
     private func manifoldTick() {
         let now = Date()
-        if now.timeIntervalSince(lastControlCheck) > 1.0 {
+        if now.timeIntervalSince(lastControlCheck) > 0.25 {
             lastControlCheck = now
             if let z = readControl() {
                 sim.zTarget = z

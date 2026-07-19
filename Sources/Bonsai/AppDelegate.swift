@@ -6,6 +6,7 @@ import Metal
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow!
     private var statusItem: NSStatusItem!
+    private var stateMapPanel: StateMapPanel?
     private var sim: NCASimulation?
     private var sim3D: NCASimulation3D?
     private var behavior: CreatureBehavior?
@@ -126,6 +127,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let creatureItem = NSMenuItem(title: "Creature", action: nil, keyEquivalent: "")
         menu.addItem(creatureItem)
         menu.setSubmenu(creatureMenu, for: creatureItem)
+        menu.addItem(withTitle: "State Space…", action: #selector(showStateMap), keyEquivalent: "m")
         menu.addItem(withTitle: "Regrow from Seed", action: #selector(reseed), keyEquivalent: "r")
         menu.addItem(withTitle: "Reload Weights", action: #selector(reloadWeights), keyEquivalent: "")
         menu.addItem(.separator())
@@ -165,6 +167,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if ok != true {
             load(creature: creature)  // shape changed: rebuild
         }
+    }
+
+    @objc private func showStateMap() {
+        if stateMapPanel == nil { stateMapPanel = StateMapPanel.make() }
+        stateMapPanel?.makeKeyAndOrderFront(nil)
     }
 
     @objc private func quit() { NSApp.terminate(nil) }

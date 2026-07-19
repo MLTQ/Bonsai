@@ -1,0 +1,134 @@
+import AppKit
+
+/// The state-space explorer: a small floating panel showing a 2D embedding of the
+/// creature's mood manifold (built by tools/make_statemap.py). Drag the cursor and
+/// the creature morphs — the panel inverts 2D -> 10D by inverse-distance-weighted
+/// nearest neighbors and writes weights/control.json, so it steers through the same
+/// channel as the trace daemon and the autopilot politely yields.
+final class StateMapPanel: NSPanel {
+    private let mapView: StateMapView
+
+    static func make() -> StateMapPanel? {
+        StateMap.load().map { StateMapPanel(map: $0) }
+    }
+
+    private init(map: StateMap) {
+        mapView = StateMapView(map: map)
+        let rect = NSRect(x: 0, y: 0, width: 300, height: 320)
+        super.init(contentRect: rect,
+                   styleMask: [.titled, .closable, .utilityWindow, .nonactivatingPanel],
+                   backing: .buffered, defer: false)
+        title = "State Space"
+        isFloatingPanel = true
+        level = .floating
+        contentView = mapView
+        setFrameAutosaveName("BonsaiStateMap")
+    }
+}
+
+struct StateMap: Decodable {
+    let method: String
+    let points: [[Double]]
+    let z: [[Double]]
+    let anchors: [String: [Double]]
+
+    static func load() -> StateMap? {
+        guard let dir = NCAWeights.weightsDir(),
+              let data = FileManager.default.contents(atPath: dir + "/statemap_shoggoth3d.json")
+        else { return nil }
+        return try? JSONDecoder().decode(StateMap.self, from: data)
+    }
+}
+
+final class StateMapView: NSView {
+    private let map: StateMap
+    private var cursor = CGPoint(x: 0.5, y: 0.5)
+    private var lastWrite = Date.distantPast
+
+    init(map: StateMap) {
+        self.map = map
+        super.init(frame: .zero)
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor(calibratedWhite: 0.12, alpha: 1).setFill()
+        bounds.fill()
+        let inset = bounds.insetBy(dx: 16, dy: 16)
+
+        NSColor(calibratedWhite: 0.45, alpha: 0.5).setFill()
+        for p in map.points {
+            let pt = place(p, in: inset)
+            NSBezierPath(ovalIn: NSRect(x: pt.x - 1.2, y: pt.y - 1.2, width: 2.4, height: 2.4)).fill()
+        }
+
+        let labelAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
+            .foregroundColor: NSColor(calibratedRed: 0.92, green: 0.62, blue: 0.45, alpha: 1),
+        ]
+        for (name, p) in map.anchors {
+            let pt = place(p, in: inset)
+            NSColor(calibratedRed: 0.85, green: 0.47, blue: 0.34, alpha: 1).setFill()
+            NSBezierPath(ovalIn: NSRect(x: pt.x - 3, y: pt.y - 3, width: 6, height: 6)).fill()
+            (name as NSString).draw(at: NSPoint(x: pt.x + 5, y: pt.y - 5), withAttributes: labelAttrs)
+        }
+
+        let cpt = place([Double(cursor.x), Double(cursor.y)], in: inset)
+        NSColor.white.setStroke()
+        let ring = NSBezierPath(ovalIn: NSRect(x: cpt.x - 7, y: cpt.y - 7, width: 14, height: 14))
+        ring.lineWidth = 2
+        ring.stroke()
+        NSColor(calibratedRed: 0.99, green: 0.9, blue: 0.6, alpha: 1).setFill()
+        NSBezierPath(ovalIn: NSRect(x: cpt.x - 3.5, y: cpt.y - 3.5, width: 7, height: 7)).fill()
+    }
+
+    private func place(_ p: [Double], in rect: NSRect) -> NSPoint {
+        NSPoint(x: rect.minX + rect.width * CGFloat(p[0]),
+                y: rect.minY + rect.height * CGFloat(p[1]))
+    }
+
+    override func mouseDown(with event: NSEvent) { drag(event) }
+    override func mouseDragged(with event: NSEvent) { drag(event) }
+
+    private func drag(_ event: NSEvent) {
+        let inset = bounds.insetBy(dx: 16, dy: 16)
+        let p = convert(event.locationInWindow, from: nil)
+        cursor = CGPoint(x: min(max((p.x - inset.minX) / inset.width, 0), 1),
+                         y: min(max((p.y - inset.minY) / inset.height, 0), 1))
+        needsDisplay = true
+        steer()
+    }
+
+    /// kNN (k=8) inverse-distance-weighted blend of the neighbors' z vectors.
+    private func steer() {
+        guard Date().timeIntervalSince(lastWrite) > 0.2 else { return }
+        lastWrite = Date()
+        let cx = Double(cursor.x), cy = Double(cursor.y)
+        var dists: [(Double, Int)] = []
+        for (i, p) in map.points.enumerated() {
+            let d = (p[0] - cx) * (p[0] - cx) + (p[1] - cy) * (p[1] - cy)
+            dists.append((d, i))
+        }
+        dists.sort { $0.0 < $1.0 }
+        let k = min(8, dists.count)
+        var weights = [Double](repeating: 0, count: k)
+        var total = 0.0
+        for j in 0..<k {
+            let w = 1.0 / (dists[j].0 + 1e-6)
+            weights[j] = w
+            total += w
+        }
+        let zdim = map.z[0].count
+        var z = [Double](repeating: 0, count: zdim)
+        for j in 0..<k {
+            let src = map.z[dists[j].1]
+            for d in 0..<zdim { z[d] += src[d] * weights[j] / total }
+        }
+        guard let dir = NCAWeights.weightsDir(),
+              let data = try? JSONSerialization.data(withJSONObject:
+                  ["z": z.map { (($0 * 1000).rounded() / 1000) }])
+        else { return }
+        try? data.write(to: URL(fileURLWithPath: dir + "/control.json"))
+    }
+}

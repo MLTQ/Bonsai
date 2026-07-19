@@ -120,7 +120,7 @@ final class ManifoldBehavior: CreatureBehavior {
         let now = Date()
 
         // External control channel (poll at 1 Hz).
-        if now.timeIntervalSince(lastControlCheck) > 1.0 {
+        if now.timeIntervalSince(lastControlCheck) > 0.25 {
             lastControlCheck = now
             if let z = readControl() {
                 sim.zTarget = z
