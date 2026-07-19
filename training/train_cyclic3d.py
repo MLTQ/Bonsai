@@ -65,14 +65,23 @@ class CyclicNCA3D(nn.Module):
         life = (pre_life & self.alive(x)).float()
         return (x * life).clamp(-8.0, 8.0)
 
+    use_checkpoint = True
+    step_fn = None  # optionally a torch.compile'd wrapper around forward
+
     def rollout(self, x, theta0, beh, steps):
-        """Checkpointed rollout; theta advances OMEGA per step inside chunks."""
+        """Rollout; theta advances OMEGA per step. Checkpointed in CHUNK segments
+        unless use_checkpoint is False (viable on 80GB cards, kills recompute)."""
+        fwd = self.step_fn if self.step_fn is not None else self.forward
+
         def run_chunk(x0, th0, n):
             for i in range(int(n)):
                 th = th0 + i * OMEGA
                 cond = torch.stack([torch.sin(th), torch.cos(th), beh.float()], dim=1)
-                x0 = self.forward(x0, cond)
+                x0 = fwd(x0, cond)
             return x0
+
+        if not self.use_checkpoint:
+            return run_chunk(x, theta0, steps)
 
         done = 0
         while done < steps:
@@ -109,6 +118,24 @@ def damage(x):
         cz, cy, cx = (np.random.uniform(g * 0.25, g * 0.75) for _ in range(3))
         x[i] *= (((xx - cx) ** 2 + (yy - cy) ** 2 + (zz - cz) ** 2) > r ** 2).float()
     return x
+
+
+def load_nc3c(model, path):
+    """Warm-start from an exported NC3C file (continuation / restart-after-config-change)."""
+    import struct
+
+    with open(path, "rb") as f:
+        assert f.read(4) == b"NC3C", "not an NC3C file"
+        ch, hid, cond = struct.unpack("<3i", f.read(12))
+        assert (ch, hid, cond) == (CH, HIDDEN, COND), "shape mismatch"
+        f.read(4)
+        def arr(n):
+            return torch.from_numpy(np.frombuffer(f.read(n * 4), dtype="<f4").copy())
+        with torch.no_grad():
+            model.w1.weight.copy_(arr(HIDDEN * (CH * 4 + COND)).view(HIDDEN, CH * 4 + COND, 1, 1, 1))
+            model.w1.bias.copy_(arr(HIDDEN))
+            model.w2.weight.copy_(arr(CH * HIDDEN).view(CH, HIDDEN, 1, 1, 1))
+            model.w2.bias.copy_(arr(CH))
 
 
 def export(model, path):
@@ -156,9 +183,17 @@ def main():
     ap.add_argument("--chunk", type=int, default=CHUNK)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else
                     ("mps" if torch.backends.mps.is_available() else "cpu"))
+    ap.add_argument("--init", default=None, help="warm-start from an exported .nca")
+    ap.add_argument("--compile", action="store_true",
+                    help="torch.compile(reduce-overhead): fuse + CUDA-graph each step")
+    ap.add_argument("--no-ckpt", action="store_true",
+                    help="disable gradient checkpointing (needs ~big VRAM; kills recompute)")
+    ap.add_argument("--fixed-t", type=int, default=0,
+                    help="fix rollout length (avoids recompiles under --compile)")
     args = ap.parse_args()
     POOL_SIZE, BATCH, CHUNK = args.pool, args.batch, args.chunk
-    print(f"grid {GRID3}^3, pool {POOL_SIZE}, batch {BATCH}, chunk {CHUNK}", flush=True)
+    print(f"grid {GRID3}^3, pool {POOL_SIZE}, batch {BATCH}, chunk {CHUNK}, "
+          f"compile={args.compile}, ckpt={not args.no_ckpt}, fixedT={args.fixed_t}", flush=True)
 
     device = torch.device(args.device)
     torch.manual_seed(0)
@@ -167,6 +202,12 @@ def main():
     print("generating frames...", flush=True)
     frames_t = torch.from_numpy(make_frames3d()).permute(0, 1, 5, 2, 3, 4).float().to(device)
     model = CyclicNCA3D().to(device)
+    if args.init:
+        load_nc3c(model, args.init)
+        print(f"warm-started from {args.init}", flush=True)
+    model.use_checkpoint = not args.no_ckpt
+    if args.compile:
+        model.step_fn = torch.compile(model.forward, mode="reduce-overhead")
     opt = torch.optim.Adam(model.parameters(), lr=2e-3)
     sched = torch.optim.lr_scheduler.MultiStepLR(opt, milestones=[8000, 18000], gamma=0.3)
 
@@ -195,7 +236,7 @@ def main():
             if it > 1000:
                 x[-DAMAGE_N:] = damage(x[-DAMAGE_N:])
 
-        T = int(np.random.randint(48, 73))
+        T = args.fixed_t if args.fixed_t else int(np.random.randint(48, 73))
         x.requires_grad_(True)
         out = model.rollout(x, theta, beh, T)
         loss = ((out[:, :4] - target_at(frames_t, beh, theta + T * OMEGA)) ** 2).mean()

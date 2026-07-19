@@ -28,6 +28,17 @@ MOUTH = (0.30, 0.20, 0.16)
 C = GRID3 / 2.0
 
 
+def _ellipsoid(vol, cx, cy, cz, rx, ry, rz, color, soft=0.8):
+    """Axis-aligned soft ellipsoid on the supersampled canvas (target3d convention)."""
+    from target3d import _coords
+    x, y, z = _coords()
+    d = np.sqrt(((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 + ((z - cz) / rz) ** 2)
+    m = np.clip((1.0 - d) * min(rx, ry, rz) / soft, 0, 1)
+    a = m[..., None]
+    vol[..., 3:4] = np.maximum(vol[..., 3:4], a)
+    np.copyto(vol[..., 0:3], np.array(color, np.float32), where=a > 0.15)
+
+
 def draw_claudeguy(phase=0.0, blink=0.0, look=(0.0, 0.0), petal_flex=None):
     """One volumetric frame. Faces +z. All animation inputs optional (static default).
     petal_flex: optional per-petal radial flex array (N_PETALS,) in [-1, 1]."""
@@ -43,43 +54,40 @@ def draw_claudeguy(phase=0.0, blink=0.0, look=(0.0, 0.0), petal_flex=None):
         ang = k * 2 * np.pi / N_PETALS + 0.13 * np.sin(k * 2.7)   # handmade jitter
         # deterministic per-petal irregularity: length and plumpness vary
         wob = np.sin(k * 4.9) * 0.5 + np.sin(k * 1.3) * 0.5
-        length = (8.8 + 1.3 * wob + 1.2 * petal_flex[k]) * K
-        r0 = (3.8 + 0.35 * np.sin(k * 3.1)) * K   # plump carrot-pillows, not spikes
-        r1 = (2.3 + 0.25 * np.cos(k * 2.2)) * K
+        length = (11.2 + 1.4 * wob + 1.2 * petal_flex[k]) * K
+        r0 = (2.35 + 0.2 * np.sin(k * 3.1)) * K   # slowly tapering cylinder...
+        r1 = (1.95 + 0.15 * np.cos(k * 2.2)) * K  # ...with a dome cap (the last sweep sphere)
         dx, dy = np.cos(ang), np.sin(ang)
         pts = []
         n = 10
         for i in range(n):
             t = i / (n - 1)
             r = (6.0 * K) + length * t
-            # petals cup gently backward toward the tips, plus a hint of droop
-            z = fz - (2.6 * t * t + 0.4 * wob * t) * K
+            # nearly straight petals; just a whisper of backward cup for depth
+            z = fz - (1.4 * t * t + 0.25 * wob * t) * K
             pts.append((C + dx * r, fy + dy * r, z))
         _swept(vol, pts, r0, r1, PETAL, soft=1.3 * K)
         # a slightly darker, thinner back layer gives the petals depth
         back = [(p[0], p[1], p[2] - 1.6 * K) for p in pts]
         _swept(vol, back, r0 * 0.85, r1 * 0.85, PETAL_DEEP, soft=1.2 * K)
 
-    # --- Face disk: a wide cream plate, forward enough to frame the features --
-    for (ox, oy, oz, r) in ((0.0, 0.0, 1.5, 7.4), (-3.6, -0.4, 2.2, 5.6),
-                            (3.6, -0.2, 2.2, 5.6), (0.0, -2.8, 2.6, 5.0),
-                            (0.0, 2.6, 2.0, 5.4)):
-        _sphere(vol, C + ox * K, fy + oy * K, fz + oz * K, r * K, FACE, soft=1.1 * K)
+    # --- Face: one clean circular disk (round from the front, domed in depth) --
+    _ellipsoid(vol, C, fy, fz + 2.6 * K, 8.9 * K, 8.9 * K, 3.4 * K, FACE, soft=1.0 * K)
 
     # --- The eyes: ENORMOUS, glossy, bulging well proud of the face ----------
     eo = 1.0 - blink
     # left eye (viewer's left): slightly smaller, a touch lower
-    _sphere(vol, C - 4.4 * K, fy + 2.6 * K, fz + 6.4 * K, 4.6 * K * (0.5 + 0.5 * eo),
+    _sphere(vol, C - 3.9 * K, fy + 2.4 * K, fz + 6.4 * K, 4.0 * K * (0.5 + 0.5 * eo),
             EYE_WHITE, soft=0.6 * K)
     # right eye: the big one — asymmetry is the charm
-    _sphere(vol, C + 4.4 * K, fy + 3.4 * K, fz + 7.0 * K, 5.4 * K * (0.5 + 0.5 * eo),
+    _sphere(vol, C + 3.9 * K, fy + 3.0 * K, fz + 6.8 * K, 4.6 * K * (0.5 + 0.5 * eo),
             EYE_WHITE, soft=0.6 * K)
     if blink < 0.85:
         lx, ly = look
-        _sphere(vol, C - 4.4 * K + lx * K, fy + 2.4 * K + ly * K, fz + 10.4 * K,
+        _sphere(vol, C - 3.9 * K + lx * K, fy + 2.2 * K + ly * K, fz + 9.8 * K,
+                1.8 * K, PUPIL, soft=0.4 * K)
+        _sphere(vol, C + 3.9 * K + lx * K, fy + 2.8 * K + ly * K, fz + 10.8 * K,
                 2.0 * K, PUPIL, soft=0.4 * K)
-        _sphere(vol, C + 4.4 * K + lx * K, fy + 3.2 * K + ly * K, fz + 11.6 * K,
-                2.3 * K, PUPIL, soft=0.4 * K)
 
     # --- The :3 mouth: two little arches hanging from anchor points ----------
     for t in np.linspace(-1.0, 1.0, 15):
