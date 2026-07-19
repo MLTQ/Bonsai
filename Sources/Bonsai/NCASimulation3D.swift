@@ -137,6 +137,18 @@ final class NCASimulation3D {
         }
     }
 
+    /// Load raw RGBA voxels (z,y,x order, 4 floats each) into the visible channels —
+    /// lets the raymarcher preview authored target volumes before any training exists.
+    func loadStateRGBA(_ rgba: [Float]) {
+        let voxels = grid * grid * grid
+        guard rgba.count == voxels * 4 else { return }
+        let ptr = cur.contents().bindMemory(to: Float.self, capacity: voxels * NCAWeights.channels)
+        for i in 0..<voxels {
+            for c in 0..<4 { ptr[i * NCAWeights.channels + c] = rgba[i * 4 + c] }
+            for c in 4..<NCAWeights.channels { ptr[i * NCAWeights.channels + c] = 0 }
+        }
+    }
+
     func reseed() {
         let count = grid * grid * grid * NCAWeights.channels
         let ptr = cur.contents().bindMemory(to: Float.self, capacity: count)

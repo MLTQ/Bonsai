@@ -159,6 +159,42 @@ enum RenderTest {
         return 0
     }
 
+    /// Raymarch a raw authored volume (float32 RGBA, (z,y,x) order) with no NCA at all —
+    /// art preview through the production renderer. `--render-vol vol.raw out.png [azDeg]`
+    static func renderVolume(volumePath: String, outputPath: String,
+                             azimuthDegrees: Float) -> Int32 {
+        let grid = envGrid()
+        guard let data = FileManager.default.contents(atPath: volumePath),
+              data.count == grid * grid * grid * 4 * 4
+        else {
+            FileHandle.standardError.write(
+                Data("volume file missing or wrong size for grid \(grid)\n".utf8))
+            return 1
+        }
+        var rgba = [Float](repeating: 0, count: grid * grid * grid * 4)
+        data.withUnsafeBytes { raw in
+            rgba.withUnsafeMutableBytes { dst in
+                dst.baseAddress!.copyMemory(from: raw.baseAddress!, byteCount: data.count)
+            }
+        }
+        // Any 3D weights serve as a host; we never step the automaton.
+        guard let wpath = NCAWeights.weightsDir().map({ $0 + "/bonsai3d.nca" }),
+              let device = MTLCreateSystemDefaultDevice(),
+              let weights = try? NCAWeights.load(from: wpath),
+              let sim = NCASimulation3D(device: device, weights: weights, grid: grid)
+        else {
+            FileHandle.standardError.write(Data("no host weights for volume preview\n".utf8))
+            return 1
+        }
+        sim.loadStateRGBA(rgba)
+        sim.azimuth = azimuthDegrees * .pi / 180
+        guard let bytes = sim.renderOffscreen(size: 512),
+              writeRGBA8PNG(bytes: bytes, width: 512, height: 512, to: outputPath)
+        else { return 1 }
+        print("raymarched \(volumePath) (grid \(grid)) -> \(outputPath)")
+        return 0
+    }
+
     private static func writeRGBA8PNG(bytes: [UInt8], width: Int, height: Int,
                                       to outputPath: String) -> Bool {
         var pixels = bytes
