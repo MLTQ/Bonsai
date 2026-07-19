@@ -14,6 +14,10 @@ struct Creature {
     var seed3D: (x: Int, y: Int, z: Int)? = nil
     /// Voxel grid edge for volumetric creatures (weights are grid-agnostic; this isn't).
     var grid3D: Int = 32
+    /// State-map json (weights dir) for the explorer panel, if this creature has a manifold.
+    var stateMapName: String? = nil
+    /// Flag-creature states for the panel: (display label, control anchor to send).
+    var flagStates: [(String, String)]? = nil
 
     static let registry: [Creature] = [
         Creature(name: "Bonsai", fileName: "bonsai.nca", renderStyle: 0, makeBehavior: { nil }),
@@ -21,17 +25,18 @@ struct Creature {
         Creature(name: "Shoggoth", fileName: "shoggoth.nca", renderStyle: 0,
                  makeBehavior: { ShoggothBehavior() }),
         Creature(name: "Manifold", fileName: "shoggoth_manifold.nca", renderStyle: 0,
-                 makeBehavior: { ManifoldBehavior() }),
+                 makeBehavior: { ManifoldBehavior() }, stateMapName: "statemap_2d.json"),
         Creature(name: "Bonsai 3D", fileName: "bonsai3d.nca", renderStyle: 0,
                  makeBehavior: { nil }, volumetric: true, seed3D: (16, 10, 16)),
         Creature(name: "Shoggoth Mk. III", fileName: "shoggoth3d.nca", renderStyle: 0,
                  makeBehavior: { nil }, volumetric: true),
         Creature(name: "Shoggoth Mk. IV", fileName: "shoggoth3d_manifold.nca", renderStyle: 0,
-                 makeBehavior: { nil }, volumetric: true),
+                 makeBehavior: { nil }, volumetric: true, stateMapName: "statemap_3d.json"),
         Creature(name: "Shoggoth 64", fileName: "shoggoth3d_64.nca", renderStyle: 0,
                  makeBehavior: { nil }, volumetric: true, grid3D: 64),
         Creature(name: "Moss Spirit", fileName: "moss_spirit.nca", renderStyle: 0,
-                 makeBehavior: { StateBehavior() }),
+                 makeBehavior: { StateBehavior() },
+                 flagStates: [("calm", "content"), ("rage", "agitated")]),
     ]
 
     var path: String? {

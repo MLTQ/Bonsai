@@ -8,8 +8,14 @@ import AppKit
 final class StateMapPanel: NSPanel {
     private let mapView: StateMapView
 
-    static func make() -> StateMapPanel? {
-        StateMap.load().map { StateMapPanel(map: $0) }
+    static func make(for creature: Creature?) -> StateMapPanel? {
+        if let name = creature?.stateMapName, let map = StateMap.load(named: name) {
+            return StateMapPanel(map: map)
+        }
+        if let states = creature?.flagStates {
+            return StateMapPanel(map: StateMap.islands(states))
+        }
+        return StateMap.load(named: "statemap_2d.json").map { StateMapPanel(map: $0) }
     }
 
     private init(map: StateMap) {
@@ -31,12 +37,59 @@ struct StateMap: Decodable {
     let points: [[Double]]
     let z: [[Double]]
     let anchors: [String: [Double]]
+    /// islands mode only: control anchor name per point (steer sends anchors, not z)
+    var pointControls: [String]? = nil
 
-    static func load() -> StateMap? {
+    private enum CodingKeys: String, CodingKey { case method, points, z, anchors }
+
+    init(method: String, points: [[Double]], z: [[Double]],
+         anchors: [String: [Double]], pointControls: [String]? = nil) {
+        self.method = method
+        self.points = points
+        self.z = z
+        self.anchors = anchors
+        self.pointControls = pointControls
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        method = try c.decode(String.self, forKey: .method)
+        points = try c.decode([[Double]].self, forKey: .points)
+        z = try c.decode([[Double]].self, forKey: .z)
+        anchors = try c.decode([String: [Double]].self, forKey: .anchors)
+        pointControls = nil
+    }
+
+    static func load(named name: String) -> StateMap? {
         guard let dir = NCAWeights.weightsDir(),
-              let data = FileManager.default.contents(atPath: dir + "/statemap_shoggoth3d.json")
+              let data = FileManager.default.contents(atPath: dir + "/" + name)
         else { return nil }
         return try? JSONDecoder().decode(StateMap.self, from: data)
+    }
+
+    /// Two-island map for flag creatures: labeled clusters and the road between.
+    static func islands(_ states: [(String, String)]) -> StateMap {
+        var pts: [[Double]] = []
+        var controls: [String] = []
+        var anchors: [String: [Double]] = [:]
+        let centers: [[Double]] = [[0.25, 0.5], [0.75, 0.5]]
+        var rng = SystemRandomNumberGenerator()
+        for (i, (label, control)) in states.prefix(2).enumerated() {
+            anchors[label] = centers[i]
+            for _ in 0..<24 {
+                let dx = Double.random(in: -0.07...0.07, using: &rng)
+                let dy = Double.random(in: -0.07...0.07, using: &rng)
+                pts.append([centers[i][0] + dx, centers[i][1] + dy])
+                controls.append(control)
+            }
+        }
+        for t in stride(from: 0.1, through: 0.9, by: 0.05) {
+            pts.append([0.25 + 0.5 * t, 0.5 + Double.random(in: -0.02...0.02, using: &rng)])
+            controls.append(t < 0.5 ? states[0].1 : states[min(1, states.count - 1)].1)
+        }
+        return StateMap(method: "islands", points: pts,
+                        z: Array(repeating: [0.0], count: pts.count),
+                        anchors: anchors, pointControls: controls)
     }
 }
 
@@ -125,10 +178,14 @@ final class StateMapView: NSView {
             let src = map.z[dists[j].1]
             for d in 0..<zdim { z[d] += src[d] * weights[j] / total }
         }
-        guard let dir = NCAWeights.weightsDir(),
-              let data = try? JSONSerialization.data(withJSONObject:
-                  ["z": z.map { (($0 * 1000).rounded() / 1000) }])
-        else { return }
+        guard let dir = NCAWeights.weightsDir() else { return }
+        let payload: [String: Any]
+        if let controls = map.pointControls {
+            payload = ["anchor": controls[dists[0].1]]   // islands: send the nearest anchor
+        } else {
+            payload = ["z": z.map { (($0 * 1000).rounded() / 1000) }]
+        }
+        guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
         try? data.write(to: URL(fileURLWithPath: dir + "/control.json"))
     }
 }

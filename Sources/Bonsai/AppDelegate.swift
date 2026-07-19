@@ -81,6 +81,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.currentCreature = creature
         self.weightsMTime = fileMTime(path)
         UserDefaults.standard.set(creature.name, forKey: "creature")
+        stateMapPanel?.close()
+        stateMapPanel = nil   // panel geometry belongs to the creature
     }
 
     @objc private func switchCreature(_ sender: NSMenuItem) {
@@ -170,7 +172,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showStateMap() {
-        if stateMapPanel == nil { stateMapPanel = StateMapPanel.make() }
+        if stateMapPanel == nil { stateMapPanel = StateMapPanel.make(for: currentCreature) }
         stateMapPanel?.makeKeyAndOrderFront(nil)
     }
 

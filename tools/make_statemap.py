@@ -17,7 +17,14 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "training"))
-from manifold_shoggoth3d import ANCHORS, ZDIM  # noqa: E402
+import argparse as _ap
+_pre = _ap.ArgumentParser(add_help=False)
+_pre.add_argument("--creature", default="3d", choices=["2d", "3d"])
+_known, _ = _pre.parse_known_args()
+if _known.creature == "3d":
+    from manifold_shoggoth3d import ANCHORS, ZDIM  # noqa: E402
+else:
+    from manifold_shoggoth import ANCHORS, ZDIM  # noqa: E402
 
 
 def build_samples(rng):
@@ -40,9 +47,12 @@ def build_samples(rng):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "..",
-                                                  "weights", "statemap_shoggoth3d.json"))
+    ap.add_argument("--creature", default="3d", choices=["2d", "3d"])
+    ap.add_argument("--out", default=None)
     args = ap.parse_args()
+    if args.out is None:
+        args.out = os.path.join(os.path.dirname(__file__), "..", "weights",
+                                f"statemap_shoggoth{args.creature}.json")
 
     rng = np.random.default_rng(7)
     anchor_names, anchor_z, zs = build_samples(rng)
