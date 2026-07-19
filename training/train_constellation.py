@@ -27,6 +27,7 @@ DWELL_P = 0.10   # low, and proximity-gated below: polish on arrival, never park
 
 
 def main():
+    global DWELL_P, BATCH, POOL_SIZE
     ap = argparse.ArgumentParser()
     ap.add_argument("--target", required=True)
     ap.add_argument("--iters", type=int, default=12000)
@@ -44,7 +45,6 @@ def main():
                     help="override DWELL_P (dense rings want 0: arrival is free)")
     args = ap.parse_args()
 
-    global DWELL_P, BATCH, POOL_SIZE
     BATCH, POOL_SIZE = args.batch, args.pool
     if args.hidden:
         train_states.HIDDEN = args.hidden
