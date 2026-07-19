@@ -75,6 +75,10 @@ class CyclicNCA3D(nn.Module):
 
         def run_chunk(x0, th0, n):
             for i in range(int(n)):
+                if self.step_fn is not None:
+                    # reduce-overhead CUDA graphs recycle output tensors between
+                    # replays; this marks the boundary so chained steps stay valid
+                    torch.compiler.cudagraph_mark_step_begin()
                 th = th0 + i * OMEGA
                 cond = torch.stack([torch.sin(th), torch.cos(th), beh.float()], dim=1)
                 x0 = fwd(x0, cond)
