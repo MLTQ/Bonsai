@@ -32,8 +32,17 @@ def main():
     ap.add_argument("--iters", type=int, default=12000)
     ap.add_argument("--out", default="../weights/constellation.nca")
     ap.add_argument("--device", default="mps" if torch.backends.mps.is_available() else "cpu")
+    ap.add_argument("--horizon", type=int, nargs=2, default=[24, 48],
+                    help="rollout steps per transit; scale DOWN as pose density goes UP")
+    ap.add_argument("--growth-p", type=float, default=0.2,
+                    help="fraction of rollouts using a 4x horizon (seed growth, persistence)")
+    ap.add_argument("--dwell", type=float, default=None,
+                    help="override DWELL_P (dense rings want 0: arrival is free)")
     args = ap.parse_args()
 
+    global DWELL_P
+    if args.dwell is not None:
+        DWELL_P = args.dwell
     data = np.load(args.target, allow_pickle=True)
     assert str(data["kind"]) == "2d_constellation"
     poses = data["poses"].astype(np.float32)        # (P, G, G, 4) all poses, flat
@@ -101,7 +110,10 @@ def main():
             if it > 500:
                 x[-DAMAGE_N:] = damage(x[-DAMAGE_N:])
 
-        for _ in range(int(np.random.randint(24, 49))):
+        steps = int(np.random.randint(args.horizon[0], args.horizon[1] + 1))
+        if np.random.rand() < args.growth_p:
+            steps *= 4          # seeds need long rollouts to grow at all
+        for _ in range(steps):
             x = model(x, st)
         loss = ((x[:, :4] - tgt) ** 2).mean()
 
