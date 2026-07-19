@@ -39,12 +39,39 @@ def _ellipsoid(vol, cx, cy, cz, rx, ry, rz, color, soft=0.8):
     np.copyto(vol[..., 0:3], np.array(color, np.float32), where=a > 0.15)
 
 
-def draw_claudeguy(phase=0.0, blink=0.0, look=(0.0, 0.0), petal_flex=None):
+def _stroke_on_face(vol, pts2d, fz_off, r, color):
+    """Sweep small spheres along 2D face-plane points [(x_off, y_off), ...]."""
+    fy = 17.0 * K
+    for (ox, oy) in pts2d:
+        _sphere(vol, C + ox * K, fy + oy * K, C + 2.0 * K + fz_off * K, r * K, color, soft=0.3 * K)
+
+
+# Expression presets, straight from the emotion anchor sheet.
+# eyes: balls | happy (^^) | squeeze (><) | sadclosed | spiral
+# mouth: w (:3) | frown | wavy | flat
+# brows: none | angry (inner down) | plead (inner up)
+EXPRESSIONS = {
+    "neutral":    dict(eyes="balls", mouth="w", brows="none", droop=0.0, pupil=1.0, look=(0, 0)),
+    "serene":     dict(eyes="happy", mouth="w", brows="none", droop=0.0, pupil=1.0, look=(0, 0)),
+    "wince":      dict(eyes="squeeze", mouth="wavy", brows="none", droop=0.15, pupil=1.0, look=(0, 0)),
+    "angry":      dict(eyes="balls", mouth="frown", brows="angry", droop=0.0, pupil=0.75, look=(0, -0.4)),
+    "pleading":   dict(eyes="balls", mouth="flat", brows="plead", droop=0.25, pupil=1.35, look=(0, 1.0)),
+    "melancholy": dict(eyes="sadclosed", mouth="frown", brows="plead", droop=0.6, pupil=1.0, look=(0, 0)),
+    "dizzy":      dict(eyes="spiral", mouth="wavy", brows="none", droop=0.3, pupil=1.0, look=(0, 0)),
+}
+
+
+def draw_claudeguy(phase=0.0, blink=0.0, look=(0.0, 0.0), petal_flex=None,
+                   expression="neutral"):
     """One volumetric frame. Faces +z. All animation inputs optional (static default).
-    petal_flex: optional per-petal radial flex array (N_PETALS,) in [-1, 1]."""
+    petal_flex: optional per-petal radial flex array (N_PETALS,) in [-1, 1].
+    expression: key into EXPRESSIONS (overrides look; composes with blink/petal_flex)."""
     vol = np.zeros((GRID3 * SS,) * 3 + (4,), dtype=np.float32)
     if petal_flex is None:
         petal_flex = np.zeros(N_PETALS)
+    ex = EXPRESSIONS[expression]
+    look = ex["look"] if expression != "neutral" else look
+    droop = ex["droop"]
 
     fy = 17.0 * K          # face center height (32-units: y=17)
     fz = C + 2.0 * K       # face plane pushed toward the viewer
@@ -65,7 +92,8 @@ def draw_claudeguy(phase=0.0, blink=0.0, look=(0.0, 0.0), petal_flex=None):
             r = (6.0 * K) + length * t
             # nearly straight petals; just a whisper of backward cup for depth
             z = fz - (1.4 * t * t + 0.25 * wob * t) * K
-            pts.append((C + dx * r, fy + dy * r, z))
+            sag = droop * 4.5 * t * t * K  # melancholy: every petal tip sinks
+            pts.append((C + dx * r, fy + dy * r - sag, z))
         _swept(vol, pts, r0, r1, PETAL, soft=1.3 * K)
         # a slightly darker, thinner back layer gives the petals depth
         back = [(p[0], p[1], p[2] - 1.6 * K) for p in pts]
@@ -74,25 +102,56 @@ def draw_claudeguy(phase=0.0, blink=0.0, look=(0.0, 0.0), petal_flex=None):
     # --- Face: one clean circular disk (round from the front, domed in depth) --
     _ellipsoid(vol, C, fy, fz + 2.6 * K, 8.9 * K, 8.9 * K, 3.4 * K, FACE, soft=1.0 * K)
 
-    # --- The eyes: ENORMOUS, glossy, bulging well proud of the face ----------
+    # --- Eyes, per expression -------------------------------------------------
     eo = 1.0 - blink
-    # left eye (viewer's left): slightly smaller, a touch lower
-    _sphere(vol, C - 3.9 * K, fy + 2.4 * K, fz + 6.4 * K, 4.0 * K * (0.5 + 0.5 * eo),
-            EYE_WHITE, soft=0.6 * K)
-    # right eye: the big one — asymmetry is the charm
-    _sphere(vol, C + 3.9 * K, fy + 3.0 * K, fz + 6.8 * K, 4.6 * K * (0.5 + 0.5 * eo),
-            EYE_WHITE, soft=0.6 * K)
-    if blink < 0.85:
-        lx, ly = look
-        _sphere(vol, C - 3.9 * K + lx * K, fy + 2.2 * K + ly * K, fz + 9.8 * K,
-                1.8 * K, PUPIL, soft=0.4 * K)
-        _sphere(vol, C + 3.9 * K + lx * K, fy + 2.8 * K + ly * K, fz + 10.8 * K,
-                2.0 * K, PUPIL, soft=0.4 * K)
+    lx, ly = look
+    if ex["eyes"] == "balls":
+        _sphere(vol, C - 3.9 * K, fy + 2.4 * K, fz + 6.4 * K, 4.0 * K * (0.5 + 0.5 * eo),
+                EYE_WHITE, soft=0.6 * K)
+        _sphere(vol, C + 3.9 * K, fy + 3.0 * K, fz + 6.8 * K, 4.6 * K * (0.5 + 0.5 * eo),
+                EYE_WHITE, soft=0.6 * K)
+        if blink < 0.85:
+            _sphere(vol, C - 3.9 * K + lx * K, fy + (2.2 + ly) * K, fz + 9.8 * K,
+                    1.8 * ex["pupil"] * K, PUPIL, soft=0.4 * K)
+            _sphere(vol, C + 3.9 * K + lx * K, fy + (2.8 + ly) * K, fz + 10.8 * K,
+                    2.0 * ex["pupil"] * K, PUPIL, soft=0.4 * K)
+    else:
+        for side, ecx, ecy in ((-1, -3.9, 2.4), (1, 3.9, 3.0)):
+            if ex["eyes"] == "happy":       # ^ ^  (upward arcs)
+                arc = [(ecx + 2.2 * np.cos(a), ecy - 1.2 + 2.4 * np.sin(a))
+                       for a in np.linspace(0.35, np.pi - 0.35, 11)]
+            elif ex["eyes"] == "sadclosed":  # gentle downward-curved closed lids
+                arc = [(ecx + 2.2 * np.cos(a), ecy + 1.4 - 2.2 * np.sin(a))
+                       for a in np.linspace(0.5, np.pi - 0.5, 11)]
+            elif ex["eyes"] == "squeeze":    # > <  (two crossing strokes)
+                arc = [(ecx + side * t * 1.9, ecy + t * 1.6) for t in np.linspace(-1, 1, 9)]
+                arc += [(ecx + side * t * 1.9, ecy - t * 1.6) for t in np.linspace(-1, 1, 9)]
+            else:                            # spiral (dizzy) — 1.5 turns
+                arc = [((ecx + (0.5 + 1.6 * s) * np.cos(3 * np.pi * s)),
+                        (ecy + (0.5 + 1.6 * s) * np.sin(3 * np.pi * s)))
+                       for s in np.linspace(0, 1, 17)]
+            _stroke_on_face(vol, arc, 5.4, 0.55, PUPIL)
 
-    # --- The :3 mouth: two little arches hanging from anchor points ----------
+    # --- Brows ---------------------------------------------------------------
+    if ex["brows"] != "none":
+        slope = -1.0 if ex["brows"] == "angry" else 0.9   # inner end down=angry, up=plead
+        for side, ecx in ((-1, -3.9), (1, 3.9)):
+            # s runs outer(-1) -> inner(+1); inner means toward the face center
+            brow = [(ecx - side * s * 1.9, 6.6 + slope * s) for s in np.linspace(-1, 1, 9)]
+            _stroke_on_face(vol, brow, 5.2, 0.5, PUPIL)
+
+    # --- Mouth, per expression ------------------------------------------------
     for t in np.linspace(-1.0, 1.0, 15):
         mx = 2.6 * t
-        my = -2.9 - 1.05 * abs(np.sin(np.pi * t))
+        if ex["mouth"] == "w":
+            my = -2.9 - 1.05 * abs(np.sin(np.pi * t))
+        elif ex["mouth"] == "frown":
+            my = -3.0 - 1.15 * t * t
+        elif ex["mouth"] == "wavy":
+            my = -3.4 + 0.5 * np.sin(3 * np.pi * t)
+        else:  # flat (small, worried)
+            mx = 1.6 * t
+            my = -3.3
         _sphere(vol, C + mx * K, fy + my * K, fz + 8.0 * K, 0.6 * K, MOUTH, soft=0.35 * K)
 
     small = vol.reshape(GRID3, SS, GRID3, SS, GRID3, SS, 4).mean(axis=(1, 3, 5))
