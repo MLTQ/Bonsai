@@ -185,27 +185,20 @@ def synth_cycle(img_rgba, frames=12):
 
 
 def ingest_states(args):
-    """Manifest json {state_name: image_path} -> multi-behavior cycle npz.
-    Each state still becomes a warp-synthesized closed cycle; states are ordered
-    and named so trainers/apps can map behavior indices to labels."""
+    """Manifest json {state_name: image_path} -> multi-state ATTRACTOR npz.
+    Each state is a static target; all animation (within-state shimmer,
+    between-state metamorphosis) belongs to the NCA's own dynamics."""
     import json as _json
 
     with open(args.input) as f:
         manifest = _json.load(f)
     names = list(manifest)
-    frames = np.zeros((len(names), args.frames, GRID2, GRID2, 4), np.float32)
+    targets = np.zeros((len(names), GRID2, GRID2, 4), np.float32)
     for b, name in enumerate(names):
-        from PIL import Image
-        img = Image.open(manifest[name]).convert("RGBA")
-        if args.key_white:
-            img = _key_white(img)
-        for f, warped in enumerate(synth_cycle(img, args.frames)):
-            tmp = "/tmp/_bonsai_state_frame.png"
-            warped.save(tmp)
-            frames[b, f] = load_image(tmp, GRID2)
-    np.savez_compressed(args.out, kind="2d_cycle", frames=frames.astype(np.float16),
+        targets[b] = load_image(manifest[name], GRID2, key_white=args.key_white)
+    np.savez_compressed(args.out, kind="2d_states", targets=targets,
                         state_names=np.array(names))
-    print(f"states {names}: {frames.shape} -> {args.out}")
+    print(f"states {names}: {targets.shape} -> {args.out}")
 
 
 def main():
