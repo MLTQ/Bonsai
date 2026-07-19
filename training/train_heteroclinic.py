@@ -24,21 +24,28 @@ def main():
     global GRID
     ap = argparse.ArgumentParser()
     ap.add_argument("--iters", type=int, default=10000)
+    ap.add_argument("--target", default=None,
+                    help="2d_states npz: its two states become the saddle poles")
     ap.add_argument("--out", default="../weights/heteroclinic.nca")
     ap.add_argument("--device", default="mps" if torch.backends.mps.is_available() else "cpu")
     args = ap.parse_args()
 
-    _load_creature("shoggoth")
-    import train_cyclic
-    frames = train_cyclic.make_frames()          # (2, 12, G, G, 4)
     import train_states
-    train_states.GRID = frames.shape[2]
-
     device = torch.device(args.device)
     torch.manual_seed(0); np.random.seed(0)
-    # the two saddle poses: opposite strides of the walk cycle
-    poles = torch.from_numpy(np.stack([frames[1, 0], frames[1, 6]])) \
-        .permute(0, 3, 1, 2).to(device)          # (2, 4, G, G)
+    if args.target:
+        data = np.load(args.target, allow_pickle=True)
+        assert str(data["kind"]) == "2d_states" and data["targets"].shape[0] == 2
+        pole_np = data["targets"].astype(np.float32)
+        train_states.GRID = pole_np.shape[1]
+        print(f"poles: {list(data['state_names'])}", flush=True)
+    else:
+        _load_creature("shoggoth")
+        import train_cyclic
+        frames = train_cyclic.make_frames()
+        pole_np = np.stack([frames[1, 0], frames[1, 6]])
+        train_states.GRID = pole_np.shape[1]
+    poles = torch.from_numpy(pole_np).permute(0, 3, 1, 2).to(device)  # (2, 4, G, G)
 
     model = StateNCA().to(device)
     opt = torch.optim.Adam(model.parameters(), lr=2e-3)
