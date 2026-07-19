@@ -86,7 +86,8 @@ def main():
     ap.add_argument("--target", required=True)
     ap.add_argument("--iters", type=int, default=9000)
     ap.add_argument("--out", default="../weights/states_creature.nca")
-    ap.add_argument("--device", default="mps" if torch.backends.mps.is_available() else "cpu")
+    ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else
+                    ("mps" if torch.backends.mps.is_available() else "cpu"))
     args = ap.parse_args()
 
     data = np.load(args.target, allow_pickle=True)

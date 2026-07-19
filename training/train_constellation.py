@@ -32,7 +32,8 @@ def main():
     ap.add_argument("--target", required=True)
     ap.add_argument("--iters", type=int, default=12000)
     ap.add_argument("--out", default="../weights/constellation.nca")
-    ap.add_argument("--device", default="mps" if torch.backends.mps.is_available() else "cpu")
+    ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else
+                    ("mps" if torch.backends.mps.is_available() else "cpu"))
     ap.add_argument("--horizon", type=int, nargs=2, default=[24, 48],
                     help="rollout steps per transit; scale DOWN as pose density goes UP")
     ap.add_argument("--batch", type=int, default=BATCH)
@@ -62,7 +63,8 @@ def main():
     n_states = int(pose_state.max()) + 1
     assert n_states == 2, "cond=1 flag: 2 states (manifold trainer for more)"
     train_states.GRID = poses.shape[1]
-    print(f"{poses.shape[0]} poses across {n_states} states, transits {transits}", flush=True)
+    print(f"{poses.shape[0]} poses across {n_states} states, transits {transits}, "
+          f"device {args.device}, batch {BATCH}, pool {POOL_SIZE}", flush=True)
 
     device = torch.device(args.device)
     torch.manual_seed(0); np.random.seed(0)

@@ -27,7 +27,8 @@ def main():
     ap.add_argument("--target", default=None,
                     help="2d_states npz: its two states become the saddle poles")
     ap.add_argument("--out", default="../weights/heteroclinic.nca")
-    ap.add_argument("--device", default="mps" if torch.backends.mps.is_available() else "cpu")
+    ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else
+                    ("mps" if torch.backends.mps.is_available() else "cpu"))
     args = ap.parse_args()
 
     import train_states
