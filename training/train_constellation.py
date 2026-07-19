@@ -34,13 +34,20 @@ def main():
     ap.add_argument("--device", default="mps" if torch.backends.mps.is_available() else "cpu")
     ap.add_argument("--horizon", type=int, nargs=2, default=[24, 48],
                     help="rollout steps per transit; scale DOWN as pose density goes UP")
+    ap.add_argument("--batch", type=int, default=BATCH)
+    ap.add_argument("--pool", type=int, default=POOL_SIZE)
+    ap.add_argument("--hidden", type=int, default=None,
+                    help="update-rule width (Swift parses it from the header; 128 default)")
     ap.add_argument("--growth-p", type=float, default=0.2,
                     help="fraction of rollouts using a 4x horizon (seed growth, persistence)")
     ap.add_argument("--dwell", type=float, default=None,
                     help="override DWELL_P (dense rings want 0: arrival is free)")
     args = ap.parse_args()
 
-    global DWELL_P
+    global DWELL_P, BATCH, POOL_SIZE
+    BATCH, POOL_SIZE = args.batch, args.pool
+    if args.hidden:
+        train_states.HIDDEN = args.hidden
     if args.dwell is not None:
         DWELL_P = args.dwell
     data = np.load(args.target, allow_pickle=True)
@@ -64,7 +71,8 @@ def main():
 
     model = StateNCA().to(device)
     opt = torch.optim.Adam(model.parameters(), lr=2e-3)
-    sched = torch.optim.lr_scheduler.MultiStepLR(opt, milestones=[4000], gamma=0.1)
+    sched = torch.optim.lr_scheduler.MultiStepLR(
+        opt, milestones=[int(args.iters * 0.45), int(args.iters * 0.8)], gamma=0.25)
 
     pool = make_seed(POOL_SIZE, device)
     pool_state = torch.randint(0, n_states, (POOL_SIZE,), device=device)
@@ -133,6 +141,8 @@ def main():
 
         if it % 50 == 0:
             print(f"iter {it:5d}  loss {loss.item():.5f}  {it/(time.time()-t0):.2f} it/s", flush=True)
+        if it % 1000 == 0:
+            export(model, f"{args.out}.it{it}")
         if it % 250 == 0 or it == args.iters:
             export(model, args.out)
             print(f"  checkpoint -> {args.out}", flush=True)
