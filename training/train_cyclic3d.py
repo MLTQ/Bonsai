@@ -147,12 +147,18 @@ def save_preview(model, frames_t, device, path):
 
 
 def main():
+    global POOL_SIZE, BATCH, CHUNK
     ap = argparse.ArgumentParser()
     ap.add_argument("--iters", type=int, default=24000)
     ap.add_argument("--out", default="../weights/shoggoth3d.nca")
+    ap.add_argument("--batch", type=int, default=BATCH)
+    ap.add_argument("--pool", type=int, default=POOL_SIZE)
+    ap.add_argument("--chunk", type=int, default=CHUNK)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else
                     ("mps" if torch.backends.mps.is_available() else "cpu"))
     args = ap.parse_args()
+    POOL_SIZE, BATCH, CHUNK = args.pool, args.batch, args.chunk
+    print(f"grid {GRID3}^3, pool {POOL_SIZE}, batch {BATCH}, chunk {CHUNK}", flush=True)
 
     device = torch.device(args.device)
     torch.manual_seed(0)

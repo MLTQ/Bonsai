@@ -12,10 +12,11 @@ frequencies are integer multiples of the base cycle.
 
 import numpy as np
 
-from target3d import GRID3, SS, _composite, _coords, _sphere, _swept
+from target3d import GRID3, SCALE, SS, _composite, _coords, _sphere, _swept
 
 FRAMES = 12
 BEHAVIORS = 2
+K = SCALE  # anatomy is authored in 32^3 units; K scales it to the active grid
 
 BODY = (0.15, 0.11, 0.20)
 BODY_HI = (0.27, 0.19, 0.38)
@@ -38,28 +39,26 @@ EYES = [(0.3, 0.5, 1.6, 0.0), (1.2, 0.2, 1.2, 2.1), (2.2, 0.6, 1.4, 4.2),
 def draw3d(phase, walking):
     vol = np.zeros((GRID3 * SS,) * 3 + (4,), dtype=np.float32)
 
-    bob = (1.4 * abs(np.sin(phase)) if walking else 0.5 * np.sin(phase))
-    by = BODY_Y - bob
+    bob = (1.4 * abs(np.sin(phase)) if walking else 0.5 * np.sin(phase)) * K
+    by = BODY_Y * K - bob
 
     # Body: central mass + four churning lobes orbiting at one cycle per loop
-    _sphere(vol, C, by, C, 8.0, BODY, soft=1.6)
+    _sphere(vol, C, by, C, 8.0 * K, BODY, soft=1.6 * K)
     for k in range(4):
         ang = phase + k * (np.pi / 2)
-        lx = C + 4.5 * np.cos(ang)
-        lz = C + 4.5 * np.sin(ang)
-        ly = by + 2.0 * np.sin(phase * 2 + k * 1.9)
-        _sphere(vol, lx, ly, lz, 4.2, BODY, soft=1.5)
+        lx = C + 4.5 * K * np.cos(ang)
+        lz = C + 4.5 * K * np.sin(ang)
+        ly = by + 2.0 * K * np.sin(phase * 2 + k * 1.9)
+        _sphere(vol, lx, ly, lz, 4.2 * K, BODY, soft=1.5 * K)
     # Iridescent patches riding the churn
-    _sphere(vol, C - 3.0 * np.cos(phase), by + 3.0, C + 3.0 * np.sin(phase), 3.0,
-            BODY_HI, soft=1.4)
-    _sphere(vol, C + 4.0 * np.cos(phase + 2.0), by - 1.0, C - 4.0 * np.sin(phase + 2.0),
-            2.2, SHEEN, soft=1.2)
+    _sphere(vol, C - 3.0 * K * np.cos(phase), by + 3.0 * K, C + 3.0 * K * np.sin(phase),
+            3.0 * K, BODY_HI, soft=1.4 * K)
+    _sphere(vol, C + 4.0 * K * np.cos(phase + 2.0), by - 1.0 * K,
+            C - 4.0 * K * np.sin(phase + 2.0), 2.2 * K, SHEEN, soft=1.2 * K)
 
     # Tentacle ring: azimuthal traveling wave when walking, independent sway idle
     for k in range(N_TENT):
         az = k * 2 * np.pi / N_TENT
-        bx = C + 6.0 * np.cos(az)
-        bz = C + 6.0 * np.sin(az)
         if walking:
             curl = 1.3 * np.sin(phase - az)          # wave travels around the ring
             sway = 0.5 * np.cos(phase - az)
@@ -67,43 +66,43 @@ def draw3d(phase, walking):
             curl = 0.7 * np.sin(phase * (1 + k % 2) + k * 1.7)
             sway = 0.3 * np.sin(phase + k * 2.3)
         pts = []
-        length = 9.0
-        n = 8
+        length = 9.0 * K
+        n = 8 if K < 2 else 12   # more sweep segments at higher res: smoother arms
         for i in range(n):
             t = i / (n - 1)
             # descend from body underside, curling radially and swaying tangentially
-            rad = 6.0 + curl * 2.2 * t * t
+            rad = (6.0 + curl * 2.2 * t * t) * K
             a = az + sway * 0.35 * t
-            pts.append((C + rad * np.cos(a), by - 5.0 - length * t, C + rad * np.sin(a)))
-        _swept(vol, [(p[0], p[1], p[2]) for p in pts], 1.7, 0.7, BODY, soft=0.9)
+            pts.append((C + rad * np.cos(a), by - 5.0 * K - length * t, C + rad * np.sin(a)))
+        _swept(vol, [(p[0], p[1], p[2]) for p in pts], 1.7 * K, 0.7 * K, BODY, soft=0.9 * K)
 
     # Eyes distributed over the surface, blinking staggered; look along +z when walking
     look = 0.6 if walking else 0.0
     for az, el, size, boff in EYES:
         blink = np.clip(3.5 * np.sin(phase + boff) - 2.6, 0, 1)
-        r_surf = 8.9  # bulge proud of the body surface so they survive projection
+        r_surf = 8.9 * K  # bulge proud of the body surface so they survive projection
         ex = C + r_surf * np.cos(el) * np.cos(az)
         ey = by + r_surf * np.sin(el)
         ez = C + r_surf * np.cos(el) * np.sin(az)
         if blink >= 0.9:
-            _sphere(vol, ex, ey, ez, size * 0.9, BODY_HI, soft=0.6)
+            _sphere(vol, ex, ey, ez, size * 0.9 * K, BODY_HI, soft=0.6 * K)
         else:
-            _sphere(vol, ex, ey, ez, size, EYE_WHITE, soft=0.5)
+            _sphere(vol, ex, ey, ez, size * K, EYE_WHITE, soft=0.5 * K)
             # iris pushed slightly outward along the surface normal (+ look bias in z)
-            _sphere(vol, ex + 0.55 * np.cos(el) * np.cos(az),
-                    ey + 0.55 * np.sin(el),
-                    ez + 0.55 * np.cos(el) * np.sin(az) + look * 0.4,
-                    size * 0.55, IRIS, soft=0.4)
+            _sphere(vol, ex + 0.55 * K * np.cos(el) * np.cos(az),
+                    ey + 0.55 * K * np.sin(el),
+                    ez + 0.55 * K * np.cos(el) * np.sin(az) + look * 0.4 * K,
+                    size * 0.55 * K, IRIS, soft=0.4 * K)
 
     # The mask: rigid pale disk on the +z face. It does not churn. It never churns.
-    mz = C + 8.6
-    my = by + 2.5
-    _sphere(vol, C + 3.0, my, mz, 2.9, MASK, soft=0.5)
-    _sphere(vol, C + 2.0, my + 0.8, mz + 1.2, 0.5, MASK_FACE, soft=0.3)
-    _sphere(vol, C + 4.0, my + 0.8, mz + 1.2, 0.5, MASK_FACE, soft=0.3)
-    for t in np.linspace(-0.8, 0.8, 7):
-        _sphere(vol, C + 3.0 + t * 1.4, my - 0.9 + 0.5 * (1 - (t / 0.85) ** 2),
-                mz + 1.3, 0.35, MASK_FACE, soft=0.3)
+    mz = C + 8.6 * K
+    my = by + 2.5 * K
+    _sphere(vol, C + 3.0 * K, my, mz, 2.9 * K, MASK, soft=0.5 * K)
+    _sphere(vol, C + 2.0 * K, my + 0.8 * K, mz + 1.2 * K, 0.5 * K, MASK_FACE, soft=0.3 * K)
+    _sphere(vol, C + 4.0 * K, my + 0.8 * K, mz + 1.2 * K, 0.5 * K, MASK_FACE, soft=0.3 * K)
+    for t in np.linspace(-0.8, 0.8, 7 if K < 2 else 11):
+        _sphere(vol, C + (3.0 + t * 1.4) * K, my + (-0.9 + 0.5 * (1 - (t / 0.85) ** 2)) * K,
+                mz + 1.3 * K, 0.35 * K, MASK_FACE, soft=0.3 * K)
 
     small = vol.reshape(GRID3, SS, GRID3, SS, GRID3, SS, 4).mean(axis=(1, 3, 5))
     small[..., :3] *= small[..., 3:4]
