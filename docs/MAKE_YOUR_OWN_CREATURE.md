@@ -196,3 +196,40 @@ output; nothing mechanical enters training.
 | 64³ organism becomes a cube at long horizons | Growth trained, containment not | Longer fixed rollouts (`--fixed-t 96`); it also self-cures with pool age |
 | torch.compile "CUDAGraphs overwritten" | reduce-overhead vs. chained steps + pools | `max-autotune-no-cudagraphs`, or don't compile — measure first; at 64³ you're compute-bound anyway |
 | Diffusion job OOMs a training run | Forgot to pin the GPU | `CUDA_VISIBLE_DEVICES=<uuid>` always, by UUID not index |
+
+## 12. Pose spacing vs. capacity: the rule that governs constellation creatures
+
+Constellation/heteroclinic creatures only glide if the automaton can *tell its
+poses apart*. Three quantities interact:
+
+- **adjacent-pose distance** `d_adj` — MSE between consecutive poses in the graph
+- **the model's error floor** `L∞` — where training loss plateaus (capacity-bound)
+- **transit horizon** — rollout steps per edge
+
+The rule, measured the hard way: **traversal requires `d_adj` comfortably above
+`L∞`** (aim for 3× or more). If `d_adj ≈ L∞`, "I am at pose 3" and "I am at
+pose 4" are indistinguishable to the loss, the gradient toward the successor
+drowns in reconstruction error, and the creature parks at a compromise state.
+Observed directly: a 12-pose ring with `d_adj = 0.0101` against a plateaued
+`L∞ = 0.0092` held position for 57 of 60 sampled frames — one forward step,
+one back, in an entire free run.
+
+So denser poses are good *only until they cross the floor*. Levers, in the order
+worth trying:
+
+1. **Bolder poses** (bigger amplitude between waypoints) — raises `d_adj`, free.
+2. **More capacity** (`--hidden 256`) — lowers `L∞`. Note the Swift runtime
+   parses width from the header, but Metal keeps the hidden vector in registers,
+   so measure render cost before shipping a wide creature.
+3. **Fewer poses** — both raises `d_adj` and reduces what must be memorized;
+   13 poses in an 8.6k-parameter rule is already a lot.
+4. **Shorter horizons** — makes each transit easier, so the floor matters less.
+
+Diagnostics that tell you which failure you have:
+
+| Reading | Meaning |
+|---|---|
+| Loss plateaus early and flat over ~20k iters | capacity-bound: more iterations will not help |
+| Position tape parks on one pose | `d_adj` ≲ `L∞` |
+| Position tape jitters randomly among poses | horizon too long, or poses too similar to order |
+| Motion smooth but details soft | generation noise between poses, or grid resolution |
