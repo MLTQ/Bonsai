@@ -39,10 +39,24 @@ def _premul(rgba):
     return out
 
 
-def load_image(path, grid):
+def _key_white(img, threshold=238, soft=26):
+    """Near-white background -> transparency, with a soft edge band."""
+    import numpy as np
+    from PIL import Image
+
+    a = np.asarray(img.convert("RGBA"), dtype=np.float32)
+    lum = a[..., :3].min(axis=-1)  # white needs ALL channels high
+    alpha = np.clip((threshold - lum) / soft, 0.0, 1.0)
+    a[..., 3] = np.minimum(a[..., 3], alpha * 255.0)
+    return Image.fromarray(a.astype("uint8"), "RGBA")
+
+
+def load_image(path, grid, key_white=False):
     from PIL import Image
 
     img = Image.open(path).convert("RGBA")
+    if key_white:
+        img = _key_white(img)
     img.thumbnail((grid - 8, grid - 8), Image.LANCZOS)  # margin for growth overshoot
     canvas = Image.new("RGBA", (grid, grid), (0, 0, 0, 0))
     canvas.paste(img, ((grid - img.width) // 2, (grid - img.height) // 2))
@@ -50,7 +64,7 @@ def load_image(path, grid):
 
 
 def ingest_image(args):
-    target = load_image(args.input, GRID2)
+    target = load_image(args.input, GRID2, key_white=args.key_white)
     np.savez_compressed(args.out, kind="2d", target=target)
     print(f"2d target {target.shape} -> {args.out}")
 
@@ -66,7 +80,7 @@ def ingest_sheet(args):
             tile = img.crop((f * fw, b * fh, (f + 1) * fw, (b + 1) * fh))
             tmp = f"/tmp/_bonsai_tile.png"
             tile.save(tmp)
-            frames[b, f] = load_image(tmp, GRID2)
+            frames[b, f] = load_image(tmp, GRID2, key_white=getattr(args, "key_white", False))
     np.savez_compressed(args.out, kind="2d_cycle", frames=frames.astype(np.float16))
     print(f"2d cycle {frames.shape} -> {args.out}")
 
@@ -155,6 +169,9 @@ def main():
         p = sub.add_parser(name)
         p.add_argument("input")
         p.add_argument("--out", default="creature.npz")
+        if name in ("image", "sheet"):
+            p.add_argument("--key-white", action="store_true",
+                           help="convert near-white background to transparency")
         if name == "sheet":
             p.add_argument("--frames", type=int, default=12)
             p.add_argument("--behaviors", type=int, default=1)
