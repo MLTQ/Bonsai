@@ -148,10 +148,43 @@ field is emergent. Caveat: 4.6k iterations is early, and "slow variable exists"
 is not yet "slow variable does something legible" — the next question is whether
 g's excursions correlate with visible behaviour changes.
 
-Loss at matched iterations vs the local control (arm D, same width/batch/target,
-differing only in pooling): ratios 0.74 / 0.95 / 0.87 / 0.94 over the first four
-1k windows. Consistent sign, but four noisy medians is weak evidence; revisit
-with the full curves.
+### Loss: pooled beats local on a properly matched control
+
+Arm F vs arm D — identical hidden width (128), batch (16), pool (2048), target,
+horizon, waypoints and motion weighting. The **only** difference is 4 pooled
+channels. Median loss per 4k-iteration window:
+
+| iters | D local | F pooled | ratio |
+|---|---|---|---|
+| 0-4k | 0.0355 | 0.0290 | 0.82 |
+| 4k-8k | 0.0289 | 0.0289 | 1.00 |
+| 8k-12k | 0.0274 | 0.0229 | 0.84 |
+| 12k-16k | 0.0268 | 0.0198 | 0.74 |
+| 16k-20k | 0.0236 | 0.0177 | 0.75 |
+| 20k-24k | 0.0191 | 0.0169 | 0.88 |
+
+Consistent direction across six windows with a widening gap; F continued to
+0.0140 by 49k, below D's final 0.0191. This supersedes the earlier four-window
+read, which was too noisy to lean on.
+
+### 96^2: suggestive, but NOT a clean control
+
+Arm G (pooled, 96^2) against arm B (local, 96^2), the resolution where strict
+locality demonstrably failed — B bottomed out near 0.0331 around 8-12k and then
+*rose* (0.0339, 0.0351) rather than converging.
+
+| iters | B local | G pooled | ratio |
+|---|---|---|---|
+| 0.5k-2k | 0.0620 | 0.0348 | 0.56 |
+| 2k-4k | 0.0469 | 0.0318 | 0.68 |
+| 4k-6k | 0.0396 | 0.0334 | 0.84 |
+
+G reaches B's lifetime-best loss in roughly 8k iterations instead of ~10k.
+**Caveat, and it is a real one:** G runs batch 8 / pool 1024 because it is on
+the Mac's MPS backend, against B's batch 16 / pool 2048. That is a confound, so
+treat this as suggestive only — the 64^2 F-vs-D pair above is the controlled
+result. The question G actually settles is whether it *diverges* the way B did
+past 12k, which needs it to get there.
 
 ### Second measurement: g is proprioceptive, not a driver
 
