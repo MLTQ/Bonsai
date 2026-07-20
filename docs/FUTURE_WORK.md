@@ -252,11 +252,48 @@ If it works, g stops being proprioception and becomes memory — and a creature
 whose mood persists in a variable no cell owns is much closer to "I don't
 necessarily know what it's going to do" than anything driven by a flag we set.
 
+### Arm F completed (60k): g becomes an oscillator, and a near-perfect mirror
+
+Re-measured on the finished checkpoint. Everything got *more* pronounced:
+
+| | F @ 14k | F @ 60k |
+|---|---|---|
+| swing | 0.095 | **0.758** (8x) |
+| lag-100 autocorrelation | +0.04 .. +0.59 | **-0.80 .. -0.89** |
+| decorrelation | 56-159 steps | ~34 steps |
+| eta^2 vs pose | 0.86 / 0.40 / 0.46 / 0.58 | **0.96 / 0.96 / 0.96 / 0.96** |
+| timing lead | none | none (r 0.016 +/- 0.005) |
+
+Positive autocorrelation at short lags with strongly negative correlation at
+lag 100 is an **oscillation** with period ~200 steps — close to the pose ring's
+~188-step lap. g is not drifting; it is cycling with the body.
+
+Two things follow, and both sharpen the next experiment:
+
+1. **Training made g a better mirror, not a driver.** eta^2 went 0.86 -> 0.96
+   with no timing lead appearing. Given the state flag is handed over every
+   step, the most useful thing g can possibly be is an encoding of body state,
+   and gradient descent refined it toward exactly that. The proprioception
+   finding is not an artifact of early training; it is where this objective
+   converges.
+2. **The four pooled channels collapsed into one.** At 14k they were
+   differentiated (eta^2 0.86 / 0.40 / 0.46 / 0.58); at 60k all four sit at
+   0.96, carrying the same signal. **npool=4 is effectively npool=1.** Paying
+   for four global channels and getting one is worth knowing before scaling
+   this up.
+
+**Prediction for arm H (`--flag-dropout 0.5`, running):** if withholding the
+flag works, eta^2 should *fall* — g stops being a pure pose mirror because it
+has to carry state the flag no longer supplies — and/or the four channels
+should differentiate again, and/or a timing lead should appear. If eta^2 stays
+at 0.96 and nothing else moves, the flag was not what was holding g back and
+the hypothesis is wrong.
+
 Open questions the current arms should answer:
-- ~~Does g carry dynamics, or settle to a constant?~~ **Answered: slow variable,
-  tau ~100 steps.**
-- ~~Does g correspond to visible behaviour?~~ **Answered: yes, but as a readout
-  (eta^2 0.86, no timing lead).**
+- ~~Does g carry dynamics, or settle to a constant?~~ **Answered: slow variable;
+  at full training, an oscillator locked to the body's traversal.**
+- ~~Does g correspond to visible behaviour?~~ **Answered: yes, as a readout
+  (eta^2 0.96, no timing lead).**
 - Does `--flag-dropout` convert g from proprioception into memory?
 - Does it fix 96^2 coherence, where strict locality demonstrably failed?
 - Does damage recovery survive, or does the global variable make wounds global?

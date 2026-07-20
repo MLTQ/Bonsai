@@ -248,3 +248,9 @@ iter 10200  loss 0.02924  1.08 it/s
 iter 10250  loss 0.03108  1.08 it/s
   checkpoint -> ../weights/G_pooled96.nca
 iter 10300  loss 0.02487  1.09 it/s
+iter 10350  loss 0.02730  1.09 it/s
+iter 10400  loss 0.02635  1.09 it/s
+iter 10450  loss 0.02438  1.09 it/s
+iter 10500  loss 0.02342  1.09 it/s
+  checkpoint -> ../weights/G_pooled96.nca
+iter 10550  loss 0.03003  1.09 it/s
