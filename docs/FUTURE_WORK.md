@@ -167,6 +167,39 @@ Consistent direction across six windows with a widening gap; F continued to
 0.0140 by 49k, below D's final 0.0191. This supersedes the earlier four-window
 read, which was too noisy to lean on.
 
+### Sharpness: pooling does NOT fix the blur
+
+Lower loss is not a better-looking creature, so this was measured separately.
+`tools/sharpness_compare.py` runs local (NCA2) and pooled (NCAP) families
+through one PyTorch harness — the Swift verifier cannot parse NCAP, and
+rendering the two families in different renderers would make the renderer the
+confound. Sharpness is mean Sobel gradient magnitude of the rendered RGB;
+the target set's own sharpness is the ceiling.
+
+| creature | config | sharpness | % of target | poses visited |
+|---|---|---|---|---|
+| D local | h128, 23k | 0.01352 | 60% | 11.3 / 12 |
+| F pooled | h128, 50k | 0.01558 | **70%** | 12 / 12 |
+| wp3 local (shipped) | h256, 90k, waypoints | 0.01576 | **70%** | 12 / 12 |
+
+**Pooled matches the best local creature rather than beating it** — same 70%
+ceiling, reached with half the hidden width and half the training. That is an
+efficiency result, not a visual one, and it should not be reported as "pooling
+makes them look better".
+
+Taken with the undertraining negative result above, two candidate explanations
+for the blur are now dead:
+
+- more training (67k extra iterations: no sharpness change)
+- global coordination (pooling: same 70% ceiling)
+
+Both of those were about *coordination* — getting the body to agree with itself.
+The blur survives fixing coordination, which points instead at the update rule's
+capacity to represent high-frequency detail at all: 16 channels through a 1x1
+convolution, with an alive mask and stochastic firing that both average. The
+next thing to test is perception receptive field (dilated taps) and channel
+count, not anything that makes the creature better coordinated.
+
 ### 96^2: suggestive, but NOT a clean control
 
 Arm G (pooled, 96^2) against arm B (local, 96^2), the resolution where strict
