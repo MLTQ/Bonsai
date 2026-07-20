@@ -201,6 +201,11 @@ def main():
     if not torch.cuda.is_available():
         print("CUDA required")
         sys.exit(2)
+    # the eager reference must be true fp32: on Ampere+/Ada, cuDNN silently
+    # runs convs in TF32 by default (~1e-3 error), which is eager's inaccuracy,
+    # not the kernel's — the fused kernels always use input_precision="ieee"
+    torch.backends.cudnn.allow_tf32 = False
+    torch.backends.cuda.matmul.allow_tf32 = False
     device = torch.device("cuda")
     print(f"device: {torch.cuda.get_device_name(device)}")
     torch.manual_seed(0)

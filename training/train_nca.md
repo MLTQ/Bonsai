@@ -27,3 +27,6 @@ Trains the Growing NCA (Mordvintsev et al., distill.pub 2020) to grow, persist a
 
 ## Notes
 - ~4 it/s on M1 Pro MPS; full 8000-iter run ≈ 35 min. Checkpoints + `train_preview.png` every 250 iters; the app hot-reloads checkpoints live.
+
+### `--fused` (2026-07-19)
+Routes the rollout through `fused_step.fused_nca_step` (Triton, CUDA-only): 2 kernels/step, counter-based fire RNG seeded (it, step). Gate-validated vs this eager forward (< 1e-5); eager remains the reference. See fused_step.md.

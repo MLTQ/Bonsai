@@ -10,4 +10,4 @@ Gates 1–2 of docs/TRITON_KERNEL_PLAN.md §4. Gate 1: fused forward vs eager (s
 |---|---|---|
 | CI-by-hand before any fused training run | exit 0, "ALL GATES PASS" | any fused_step.py or trainer-math change |
 
-Run on CUDA: `python3 test_fused_parity.py`. Last verified: 2026-07-19, RTX 2070 SUPER (Aine), torch 2.11/triton 3.6 — all pass.
+Run on CUDA: `python3 test_fused_parity.py`. Last verified: 2026-07-19 on RTX 2070 SUPER and RTX 4090 (Aine), torch 2.11/triton 3.6 — all pass. On Ada+ the test pins cudnn.allow_tf32=False (TF32 convs are eager imprecision, not kernel error).

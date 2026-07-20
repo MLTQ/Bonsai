@@ -26,3 +26,6 @@ Rung 1 of the 3D ladder: volumetric Growing NCA on a static voxel target. The 2D
 ## Notes
 - Seed sits at (z=c, y=GRID3/3, x=c) — low center, where the soil line is.
 - 32³ CPU smoke ≈ 0.12 it/s; 4090 estimate 1–4 it/s (validate at launch, consider CUDA graphs if <1).
+
+### `--fused` (2026-07-19)
+`rollout(..., seed=it)` bypasses checkpointing entirely: `fused_step.FusedNCAStep` saves only 16-ch input states per step and recomputes in backward (deterministic counter RNG). Gate-validated; eager stays the reference. See fused_step.md.
