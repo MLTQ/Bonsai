@@ -190,50 +190,10 @@ if HAS_TRITON:
                 acc += cv[:, None] * wc[None, :]
 
         if SAVE:
-            # backward replay: also materialize percept (explicit tap sums —
-            # loads hit L2; no outer products, so no codegen blowup) and h_lin
+            # backward replay: materialize h_lin (cheap 2D store; percept gets
+            # its own small-register kernel — inlining its 432-load loop here
+            # next to the (BLOCK,HIDDEN) accumulator made the kernel 5x slower)
             tl.store(hlin_ptr + hr[None, :] * BS + offs[:, None], acc, mask=m[:, None])
-            for c in tl.static_range(CHANNELS):
-                base_c = (b * CHANNELS + c) * S
-                sid = tl.zeros((BLOCK,), dtype=tl.float32)
-                s1 = tl.zeros((BLOCK,), dtype=tl.float32)
-                s2 = tl.zeros((BLOCK,), dtype=tl.float32)
-                s3 = tl.zeros((BLOCK,), dtype=tl.float32)
-                for dz in tl.static_range(DLO, DHI):
-                    for dy in tl.static_range(-1, 2):
-                        for dx in tl.static_range(-1, 2):
-                            xx1 = xw + dx
-                            yy1 = yh + dy
-                            inb1 = (xx1 >= 0) & (xx1 < Wd) & (yy1 >= 0) & (yy1 < Hd) & m
-                            if DIMS == 3:
-                                zz1 = zd + dz
-                                inb1 = inb1 & (zz1 >= 0) & (zz1 < Dd)
-                                plane1 = (zz1 * Hd + yy1) * Wd + xx1
-                            else:
-                                plane1 = yy1 * Wd + xx1
-                            v = tl.load(x_ptr + base_c + plane1, mask=inb1, other=0.0)
-                            # compile-time taps: smooth(d) = 2 - d*d, deriv = d
-                            if dz == 0 and dy == 0 and dx == 0:
-                                sid = v
-                            if DIMS == 2:
-                                c1 = dx * (2 - dy * dy) / 8.0
-                                c2 = dy * (2 - dx * dx) / 8.0
-                                c3 = 0.0
-                            else:
-                                c1 = dx * (2 - dy * dy) * (2 - dz * dz) / 32.0
-                                c2 = dy * (2 - dx * dx) * (2 - dz * dz) / 32.0
-                                c3 = dz * (2 - dx * dx) * (2 - dy * dy) / 32.0
-                            if c1 != 0.0:
-                                s1 += v * c1
-                            if c2 != 0.0:
-                                s2 += v * c2
-                            if c3 != 0.0:
-                                s3 += v * c3
-                tl.store(percept_ptr + (c * NK + 0) * BS + offs, sid, mask=m)
-                tl.store(percept_ptr + (c * NK + 1) * BS + offs, s1, mask=m)
-                tl.store(percept_ptr + (c * NK + 2) * BS + offs, s2, mask=m)
-                if DIMS == 3:
-                    tl.store(percept_ptr + (c * NK + 3) * BS + offs, s3, mask=m)
         if FILM:
             ga = tl.load(gamma_ptr + b[:, None] * HIDDEN + hr[None, :], mask=m[:, None], other=0.0)
             be = tl.load(beta_ptr + b[:, None] * HIDDEN + hr[None, :], mask=m[:, None], other=0.0)
@@ -291,6 +251,67 @@ if HAS_TRITON:
         xoff = (b[:, None] * CHANNELS + cr[None, :]) * S + sp[:, None]
         mid = tl.load(mid_ptr + xoff, mask=m[:, None], other=0.0)
         tl.store(out_ptr + xoff, tl.where(live[:, None], mid, 0.0), mask=m[:, None])
+
+    @triton.jit
+    def _nca_percept_fwd(
+        x_ptr, out_ptr,             # out flat (PCH, P): row*BS + cell
+        N, S, BS, Wd, Hd, Dd,
+        DIMS: tl.constexpr, NK: tl.constexpr,
+        DLO: tl.constexpr, DHI: tl.constexpr,
+        BLOCK: tl.constexpr,
+    ):
+        """Perception alone (identity + sobels), small register footprint —
+        used by backward to materialize percept for the dw1 matmul."""
+        pid = tl.program_id(0)
+        offs = pid * BLOCK + tl.arange(0, BLOCK)
+        m = offs < N
+        b = offs // S
+        sp = offs % S
+        xw = sp % Wd
+        yh = (sp // Wd) % Hd
+        zd = sp // (Wd * Hd)
+
+        for c in tl.static_range(CHANNELS):
+            base_c = (b * CHANNELS + c) * S
+            sid = tl.zeros((BLOCK,), dtype=tl.float32)
+            s1 = tl.zeros((BLOCK,), dtype=tl.float32)
+            s2 = tl.zeros((BLOCK,), dtype=tl.float32)
+            s3 = tl.zeros((BLOCK,), dtype=tl.float32)
+            for dz in tl.static_range(DLO, DHI):
+                for dy in tl.static_range(-1, 2):
+                    for dx in tl.static_range(-1, 2):
+                        xx = xw + dx
+                        yy = yh + dy
+                        inb = (xx >= 0) & (xx < Wd) & (yy >= 0) & (yy < Hd) & m
+                        if DIMS == 3:
+                            zz = zd + dz
+                            inb = inb & (zz >= 0) & (zz < Dd)
+                            plane = (zz * Hd + yy) * Wd + xx
+                        else:
+                            plane = yy * Wd + xx
+                        v = tl.load(x_ptr + base_c + plane, mask=inb, other=0.0)
+                        # compile-time taps: smooth(d) = 2 - d*d, deriv = d
+                        if dz == 0 and dy == 0 and dx == 0:
+                            sid = v
+                        if DIMS == 2:
+                            c1 = dx * (2 - dy * dy) / 8.0
+                            c2 = dy * (2 - dx * dx) / 8.0
+                            c3 = 0.0
+                        else:
+                            c1 = dx * (2 - dy * dy) * (2 - dz * dz) / 32.0
+                            c2 = dy * (2 - dx * dx) * (2 - dz * dz) / 32.0
+                            c3 = dz * (2 - dx * dx) * (2 - dy * dy) / 32.0
+                        if c1 != 0.0:
+                            s1 += v * c1
+                        if c2 != 0.0:
+                            s2 += v * c2
+                        if c3 != 0.0:
+                            s3 += v * c3
+            tl.store(out_ptr + (c * NK + 0) * BS + offs, sid, mask=m)
+            tl.store(out_ptr + (c * NK + 1) * BS + offs, s1, mask=m)
+            tl.store(out_ptr + (c * NK + 2) * BS + offs, s2, mask=m)
+            if DIMS == 3:
+                tl.store(out_ptr + (c * NK + 3) * BS + offs, s3, mask=m)
 
     @triton.jit
     def _nca_bwd_gates(
@@ -546,6 +567,13 @@ class FusedNCAStep(torch.autograd.Function):
             x_mid = _launch_step(x, w1eff, b1, w1cond, w2t, b2, cond, gamma, beta,
                                  seed_step, fire_rate, None, dims, cond_n, film,
                                  save_bufs=(percept_f, h_lin_f))
+            grid = (triton.cdiv(p_total, 128),)
+            _nca_percept_fwd[grid](
+                x, percept_f,
+                p_total, s, p_total, wd, hd, dd,
+                DIMS=dims, NK=nk, DLO=dlo, DHI=dhi,
+                BLOCK=128, num_warps=4,
+            )
 
             # --- fused gates: life + clamp + fire -> g1, ddx ---
             g = g.contiguous()
