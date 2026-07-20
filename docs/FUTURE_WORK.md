@@ -1,5 +1,31 @@
 # Future Work (parked, not scoped)
 
+## Negative result: the blur is not undertraining (2026-07-20)
+
+Max's read on the H100 sweep was that the arms "look simply undertrained". Arm A
+was resumed from its 22.8k checkpoint and run a further 67,000 iterations at
+lr 5e-4 with growth rollouts re-enabled, until its improvement rate fell below
+2% per 10k window twice running (a real plateau, not a timeout).
+
+| | A @ 22.8k | A @ 89.8k | wp3 @ 90k |
+|---|---|---|---|
+| forward / reverse | 16 / 0 | 20 / 0 | 23 / 0 |
+| period (steps/lap) | 270 | 216 | 188 |
+| **sharpness (vs 0.0368 target)** | 0.0239 | **0.0233** | 0.0275 |
+| render error | 0.0317 | 0.0369 | 0.0224 |
+| pose coverage | skips 0,1 | skips 0,1 | all 12 |
+
+**4x the training bought better traversal and zero sharpness.** Edge energy sat
+at ~63% of the targets before and after; reconstruction error got worse, the
+run having traded accuracy for persistence under growth rollouts. Duration is
+not the lever.
+
+What this rules in: the remaining hypotheses are architectural — perception
+receptive field (see "Breaking one-cell-per-step"), and representational
+capacity for high-frequency detail. What it rules out: "just train it longer",
+which was the cheapest explanation and is now dead. Effort should go to the
+dilated-perception and pooled arms, not to bigger iteration counts.
+
 ## J-space creature (interpretability interface)
 Anthropic's Jacobian-lens work (transformer-circuits.pub/2026/workspace) finds a
 sparse "global workspace" subspace: mid-layers, <10% of activation variance,

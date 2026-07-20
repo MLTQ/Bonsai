@@ -184,3 +184,7 @@ iter  7500  loss 0.02773  1.01 it/s
 iter  7550  loss 0.03565  1.02 it/s
 iter  7600  loss 0.02877  1.02 it/s
 iter  7650  loss 0.03266  1.02 it/s
+iter  7700  loss 0.03236  1.02 it/s
+iter  7750  loss 0.01885  1.02 it/s
+  checkpoint -> ../weights/G_pooled96.nca
+iter  7800  loss 0.02202  1.02 it/s
