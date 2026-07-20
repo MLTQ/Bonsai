@@ -206,13 +206,38 @@ poses apart*. Three quantities interact:
 - **the model's error floor** `L∞` — where training loss plateaus (capacity-bound)
 - **transit horizon** — rollout steps per edge
 
-The rule, measured the hard way: **traversal requires `d_adj` comfortably above
-`L∞`** (aim for 3× or more). If `d_adj ≈ L∞`, "I am at pose 3" and "I am at
-pose 4" are indistinguishable to the loss, the gradient toward the successor
-drowns in reconstruction error, and the creature parks at a compromise state.
-Observed directly: a 12-pose ring with `d_adj = 0.0101` against a plateaued
-`L∞ = 0.0092` held position for 57 of 60 sampled frames — one forward step,
-one back, in an entire free run.
+The rule, measured the hard way: **under single-hop training, traversal requires
+`d_adj` comfortably above `L∞`** (aim for 3× or more). If `d_adj ≈ L∞`, "I am at
+pose 3" and "I am at pose 4" are indistinguishable to the loss, the gradient
+toward the successor drowns in reconstruction error, and the creature parks at a
+compromise state. Observed directly: a 12-pose ring with `d_adj = 0.0101`
+against a plateaued `L∞ = 0.0092` held position for 57 of 60 sampled frames —
+one forward step, one back, in an entire free run.
+
+> **Correction (2026-07-20): the 3× rule is a property of single-hop training,
+> not of constellation creatures.** With waypoint chains (§below) the same ring
+> traverses cleanly at **0.8×**. Three separate runs now confirm it; the best,
+> `ringB_wp3` (4 waypoints, 90k iterations, hidden 256), laps all twelve poses
+> with **23 forward steps and zero reversals** at a signal/floor ratio of 0.8×,
+> which `verify_constellation.py` still flags as "TOO LOW".
+>
+> The reason the ratio stops mattering: single-hop training only ever supervises
+> the *endpoint* of a rollout, so distinguishing pose 3 from pose 4 has to be
+> done by the loss at that endpoint — and if the poses are closer together than
+> the error floor, it cannot be. A waypoint chain supervises the whole
+> trajectory, so the creature learns the *direction of travel* rather than
+> having to resolve individual pose identity. Direction survives an error floor
+> that swamps position.
+>
+> The verifier's threshold is left in place deliberately: it is still the right
+> warning for a single-hop run. Read it as "this will not traverse unless you
+> are training with waypoints."
+
+A second correction while we are here: the earlier claim that *generation noise
+dominates the pose signal* on diffusion-built rings was **wrong**. The
+procedural ring (zero generation noise) shows the same 2.0× adjacent/opposite
+ratio as the diffusion ring's 2.2×. Whatever limits these creatures, it is not
+diffusion noise.
 
 So denser poses are good *only until they cross the floor*. Levers, in the order
 worth trying:
