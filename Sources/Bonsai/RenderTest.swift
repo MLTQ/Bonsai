@@ -14,6 +14,11 @@ enum RenderTest {
         Int(ProcessInfo.processInfo.environment["BONSAI_GRID3"] ?? "32") ?? 32
     }
 
+    /// Planar grid edge for headless runs ($BONSAI_GRID2, default 64).
+    private static func envGrid2() -> Int {
+        Int(ProcessInfo.processInfo.environment["BONSAI_GRID2"] ?? "64") ?? 64
+    }
+
     private static func makeSim(weightsPath: String?) -> NCASimulation? {
         let path = weightsPath ?? NCAWeights.defaultPath()
         guard let path else {
@@ -22,7 +27,8 @@ enum RenderTest {
         }
         guard let device = MTLCreateSystemDefaultDevice(),
               let weights = try? NCAWeights.load(from: path),
-              let sim = NCASimulation(device: device, weights: weights)
+              let sim = NCASimulation(device: device, weights: weights,
+                                      gridWidth: envGrid2(), gridHeight: envGrid2())
         else {
             FileHandle.standardError.write(Data("failed to init simulation from \(path)\n".utf8))
             return nil

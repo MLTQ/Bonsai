@@ -62,7 +62,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.contentView = VoxelPetView(simulation: sim3D,
                                               cyclic: weights.cond >= 3, frame: frame)
         } else {
-            guard let sim = NCASimulation(device: device, weights: weights) else {
+            guard let sim = NCASimulation(device: device, weights: weights,
+                                          gridWidth: creature.grid2D,
+                                          gridHeight: creature.grid2D) else {
                 fatalErrorAlert("Failed to init simulation for '\(creature.name)'")
                 return
             }

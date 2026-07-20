@@ -14,6 +14,8 @@ struct Creature {
     var seed3D: (x: Int, y: Int, z: Int)? = nil
     /// Voxel grid edge for volumetric creatures (weights are grid-agnostic; this isn't).
     var grid3D: Int = 32
+    /// Planar grid edge for 2D creatures (64 unless the creature was trained wider).
+    var grid2D: Int = 64
     /// State-map json (weights dir) for the explorer panel, if this creature has a manifold.
     var stateMapName: String? = nil
     /// Flag-creature states for the panel: (display label, control anchor to send).
