@@ -82,18 +82,17 @@ class ManifoldNCA3D(nn.Module):
             # Fused path replaces checkpointing outright: the fused Function
             # saves only each step's 16-ch input state and recomputes in
             # backward (fire mask regenerated from counter-based RNG).
-            from fused_step import fused_nca_step
+            from fused_step import fused_nca_rollout
             gamma, beta = self.film(z).chunk(2, dim=1)
             gamma = torch.tanh(gamma)  # bounded gain — non-negotiable
             w1 = self.w1.weight.reshape(HIDDEN, CH * 4 + 2)
             w2 = self.w2.weight.reshape(CH, HIDDEN)
             ths = theta0[None, :] + torch.arange(int(steps), device=x.device)[:, None] * OMEGA
             conds = torch.stack([ths.sin(), ths.cos()], dim=2)  # (T, B, 2)
-            for i in range(int(steps)):
-                x = fused_nca_step(x, w1, self.w1.bias, w2, self.w2.bias,
-                                   cond=conds[i], gamma=gamma, beta=beta,
-                                   seed=seed, step=i, fire_rate=FIRE_RATE, clamp=8.0)
-            return x
+            return fused_nca_rollout(
+                x, w1, self.w1.bias, w2, self.w2.bias, steps,
+                cond=conds, gamma=gamma, beta=beta, seed=seed,
+                fire_rate=FIRE_RATE, clamp=8.0)
 
         def run_chunk(x0, th0, n):
             for i in range(int(n)):

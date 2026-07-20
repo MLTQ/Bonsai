@@ -10,4 +10,4 @@ The convergence trainer (Mk. IV): volumetric + cyclic + tanh-FiLM manifold. Stat
 | Swift NC3M path | tanh-bounded gamma (CPU-side in refreshFilm) | FiLM form |
 
 ### `--fused` (2026-07-19)
-Fused rollout (Triton): gamma/beta computed once per iter in torch (autograd chains through the Function's dgamma/dbeta), sin/cos conds precomputed (T,B,2), per-step seed (it, i). Replaces checkpointing. Measured 1.3x vs eager on 4090 at 32³. See fused_step.md.
+Single-node fused rollout (Triton): gamma/beta computed once per iteration in torch (autograd chains through aggregated dgamma/dbeta), sin/cos conditions passed as `(T,B,2)`, per-step RNG seeded by `(it, i)`. Replaces checkpointing and reuses backward scratch. The kernel benchmark measures 1.4x vs eager on a 4090 at 32³. See fused_step.md.

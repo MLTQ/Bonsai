@@ -144,12 +144,12 @@ def main():
                 batch[-DAMAGE_N:] = damage(batch[-DAMAGE_N:])
 
         if args.fused:
-            from fused_step import fused_nca_step
-            for s in range(np.random.randint(64, 97)):
-                batch = fused_nca_step(
-                    batch, model.w1.weight.reshape(HIDDEN, CH * 3), model.w1.bias,
-                    model.w2.weight.reshape(CH, HIDDEN), model.w2.bias,
-                    seed=it, step=s, fire_rate=FIRE_RATE, clamp=None)
+            from fused_step import fused_nca_rollout
+            steps = int(np.random.randint(64, 97))
+            batch = fused_nca_rollout(
+                batch, model.w1.weight.reshape(HIDDEN, CH * 3), model.w1.bias,
+                model.w2.weight.reshape(CH, HIDDEN), model.w2.bias, steps,
+                seed=it, fire_rate=FIRE_RATE, clamp=None)
         else:
             for _ in range(np.random.randint(64, 97)):
                 batch = model(batch)

@@ -20,7 +20,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 
-from fused_step import fused_nca_step
+from fused_step import fused_nca_rollout
 from test_fused_parity import CH, HIDDEN, FIRE_RATE, EagerNCA, _aux
 
 CHUNK = 8
@@ -48,12 +48,11 @@ def eager_rollout(model, x, aux, steps, use_ckpt):
 
 
 def fused_rollout(model, x, aux, steps, seed):
-    for s in range(int(steps)):
-        x = fused_nca_step(x, model.w1, model.b1, model.w2, model.b2,
-                           cond=aux[0], gamma=aux[1], beta=aux[2],
-                           seed=seed, step=s, fire_rate=FIRE_RATE,
-                           clamp=model.clamp)
-    return x
+    return fused_nca_rollout(
+        x, model.w1, model.b1, model.w2, model.b2, steps,
+        cond=aux[0], gamma=aux[1], beta=aux[2], seed=seed,
+        fire_rate=FIRE_RATE, clamp=model.clamp,
+    )
 
 
 def bench(fn, iters, warmup=3):

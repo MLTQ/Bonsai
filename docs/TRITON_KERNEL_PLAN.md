@@ -1,7 +1,7 @@
 # Triton Fused NCA Kernel — Plan
 
 The one optimization that actually matters, written down before we build it.
-Status: **BUILT — all gates pass** (2026-07-19). See §8 for measured results
+Status: **BUILT + OPTIMIZED — all gates pass** (2026-07-19). See §8 for measured results
 and §9 for the H100 runbook. Implementation: training/fused_step.py (+ .md),
 gates in training/test_fused_parity.py, bench in training/bench_fused.py.
 `--fused` flag live in train_nca, train_nca3d, train_cyclic3d, train_manifold3d.
@@ -128,26 +128,28 @@ rollout. Eager 3D uses CHUNK=8 checkpointing (what the trainers do).
 
 | RTX 4090       | eager train | fused train | eager fwd | fused fwd | train mem  |
 |----------------|-------------|-------------|-----------|-----------|------------|
-| 2D 64² B8 T80  | 25.0 it/s   | 26.6 (1.1x) | 51.8      | 136 (2.6x)| 1.9→0.3 GiB|
-| 3D 32³ B8 T64  | 2.19        | 2.58 (1.2x) | 7.2       | 15.7 (2.2x)| 2.2→1.9   |
-| 3D 64³ B4 T48  | 0.59        | 0.85 (1.4x) | 2.0       | 5.1 (2.6x)| 8.7→6.5    |
+| 2D 64² B8 T80  | 26.43 it/s  | 33.77 (1.28x)| 52.71    | 142.25 (2.70x)| 1.9→0.3 GiB|
+| 3D 32³ B8 T64  | 2.19        | 2.99 (1.37x)| 7.26      | 25.41 (3.50x)| 2.2→1.9   |
+| 3D 64³ B4 T48  | 0.59        | 0.98 (1.66x)| 1.99      | 8.14 (4.09x)| 8.7→6.5    |
 
 | RTX 2070S (Turing) | eager train | fused train | eager fwd | fused fwd |
 |--------------------|-------------|-------------|-----------|-----------|
 | 2D 64² B8 T80      | 10.9 it/s   | 8.7 (0.8x)  | 27.3      | 44.0 (1.6x)|
 | 3D 32³ B8 T64      | 0.68        | 0.66 (1.0x) | 2.2       | 2.4 (1.1x)|
 
-Real trainers on the 4090 (not the bench harness): train_manifold3d 32³
-fused 2.67 it/s vs eager 2.06 (1.3x); train_cyclic3d fused 3.36 it/s.
+Real trainer validation on the 4090: 2D bonsai reached 31.53 it/s over 1k
+iterations and converged to loss 0.00960 (inside the prior A/B noise band).
+The 2D and static-3D trainers also passed end-to-end CUDA smoke runs.
 
 Honest notes vs §5's estimates:
-- Forward fusion delivers 2.2–2.6x on Ada; whole-train is 1.1–1.4x because
-  backward now dominates (analytic: 1 replay kernel + gate kernel + cuBLAS
-  mms + perception-transpose kernel — memory-bandwidth-bound, no grouped
-  cuDNN convs, no checkpoint recompute). The §5 8–20 it/s hope at 32³
-  assumed backward fused to the same degree as forward; it is not (yet).
-- The speedup GROWS with grid size and GPU speed (2070 0.8–1.0x → 4090
-  1.1–1.4x) — the launch-bound pathology fusion removes barely exists on
+- Forward fusion now delivers 2.7–4.1x on Ada; whole-train is 1.3–1.7x.
+  Production follows eager cuDNN's TF32 policy, so Triton forward dots and
+  flattened backward GEMMs use tensor cores; strict parity runs remain IEEE.
+  A whole trajectory is one autograd node with contiguous state history and
+  reusable scratch, removing per-step engine/allocation overhead. Backward
+  still dominates (replay + gates + GEMMs + perception transpose).
+- The speedup GROWS with grid size and GPU speed (the 2070 row predates the
+  rollout/TF32 optimization; 4090 is now 1.3–1.7x) — the launch-bound pathology barely exists on
   Turing. Expect the H100 gap to be wider than the 4090's, especially at
   64³ where eager's checkpoint recompute and launch count hurt most.
 - Memory: fused training saves only 16-ch input states per step (no

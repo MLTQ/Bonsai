@@ -5,6 +5,8 @@ Gate 1 — forward parity: fused vs eager, fixed seed, max abs diff < 1e-5 fp32,
 Gate 2 — backward parity: analytic grads vs eager autograd (fp32) with a
          float64 eager reference as ground truth; the fused error must be
          within 3x the eager-fp32 rounding error (and < 1e-4 relative).
+Gate 3 — rollout parity: one trajectory node vs chained step nodes, including
+         time-varying 3D conditioning and FiLM gradients.
 
 The eager model here is a parameterized copy of the trainer forward()s
 (train_nca / train_cyclic / train_manifold / train_nca3d / train_manifold3d)
@@ -21,7 +23,8 @@ import torch
 import torch.nn.functional as F
 
 import fused_step
-from fused_step import CH, fire_mask, fused_nca_step, perception_conv_weight
+from fused_step import (CH, fire_mask, fused_nca_rollout, fused_nca_step,
+                        perception_conv_weight)
 
 HIDDEN = 128
 FIRE_RATE = 0.5
@@ -197,6 +200,66 @@ def gate2_backward(device):
     return ok
 
 
+def gate3_rollout(device):
+    """Whole-rollout node must match the already-gated per-step recurrence."""
+    print("=== Gate 3: rollout parity (single node vs per-step nodes)")
+    ok = True
+    cases = [
+        ("2d-static", 2, 0, False, None),
+        ("3d-sequence-film", 3, 2, True, 8.0),
+    ]
+    for name, dims, cond_n, film, clamp in cases:
+        model = EagerNCA(dims, cond_n, film, clamp).to(device)
+        grid = 8 if dims == 3 else 10
+        steps = 4
+        x0 = seed_state(dims, 2, grid, device)
+        x0 = grown_state(model, x0, device, 5, seed=31)
+        aux = _aux(model, x0)
+        if cond_n:
+            offsets = torch.arange(steps, device=device)[:, None, None] * 0.03
+            cond = aux[0][None] + offsets
+        else:
+            cond = None
+
+        def run(as_rollout):
+            x = x0.detach().clone().requires_grad_(True)
+            gamma = aux[1].detach().clone().requires_grad_(True) if film else None
+            beta = aux[2].detach().clone().requires_grad_(True) if film else None
+            if as_rollout:
+                y = fused_nca_rollout(
+                    x, model.w1, model.b1, model.w2, model.b2, steps,
+                    cond=cond, gamma=gamma, beta=beta, seed=23, step_offset=7,
+                    fire_rate=FIRE_RATE, clamp=clamp, fast_math=False)
+            else:
+                y = x
+                for step in range(steps):
+                    cond_step = cond[step] if cond is not None else None
+                    y = fused_nca_step(
+                        y, model.w1, model.b1, model.w2, model.b2,
+                        cond=cond_step, gamma=gamma, beta=beta,
+                        seed=23, step=7 + step, fire_rate=FIRE_RATE,
+                        clamp=clamp, fast_math=False)
+            leaves = [x] + list(model.parameters())
+            if film:
+                leaves += [gamma, beta]
+            loss = (y * torch.linspace(-0.2, 0.3, y.numel(), device=device)
+                    .reshape_as(y)).sum()
+            return y.detach(), torch.autograd.grad(loss, leaves)
+
+        ref_y, ref_grads = run(False)
+        out_y, out_grads = run(True)
+        fwd_err = (out_y - ref_y).abs().max().item()
+        grad_err = max(
+            (got - ref).norm().item() / (ref.norm().item() + 1e-12)
+            for got, ref in zip(out_grads, ref_grads)
+        )
+        passed = fwd_err < 1e-6 and grad_err < 2e-6
+        ok &= passed
+        print(f"  [{'PASS' if passed else 'FAIL'}] {name:<18} "
+              f"maxdiff={fwd_err:.2e} max_grad_rel={grad_err:.2e}")
+    return ok
+
+
 def main():
     if not torch.cuda.is_available():
         print("CUDA required")
@@ -211,6 +274,7 @@ def main():
     torch.manual_seed(0)
     ok = gate1_forward(device)
     ok &= gate2_backward(device)
+    ok &= gate3_rollout(device)
     print("ALL GATES PASS" if ok else "GATE FAILURES — see above")
     sys.exit(0 if ok else 1)
 

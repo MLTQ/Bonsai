@@ -73,13 +73,12 @@ class NCA3D(nn.Module):
         """Checkpointed rollout: recompute chunks in backward instead of storing them.
         Fused mode replaces checkpointing (per-step input-state save + recompute)."""
         if self.fused:
-            from fused_step import fused_nca_step
+            from fused_step import fused_nca_rollout
             w1 = self.w1.weight.reshape(HIDDEN, CH * 4)
             w2 = self.w2.weight.reshape(CH, HIDDEN)
-            for i in range(int(steps)):
-                x = fused_nca_step(x, w1, self.w1.bias, w2, self.w2.bias,
-                                   seed=seed, step=i, fire_rate=FIRE_RATE, clamp=8.0)
-            return x
+            return fused_nca_rollout(
+                x, w1, self.w1.bias, w2, self.w2.bias, steps,
+                seed=seed, fire_rate=FIRE_RATE, clamp=8.0)
 
         def run_chunk(x0, n):
             for _ in range(int(n)):

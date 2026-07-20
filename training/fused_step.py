@@ -7,24 +7,22 @@ CUDA launches per step with:
   _nca_step_fwd  — perception + MLP + FiLM + fire + residual + clamp -> x_mid
   _nca_life_fwd  — 3x3(x3) alpha maxpool life gate over (pre, mid)   -> x_out
 
-Perception is computed inline per channel (explicit tap sums over the 9/27
-neighborhood — the tap coefficients are compile-time constants) and the first
-MLP layer accumulates via outer-product FMAs, so the kernel does exactly the
-eager path's FLOPs. With IEEE fp32 (mandatory for parity — no tf32) tensor
-cores are off the table anyway, so tl.dot would buy nothing over FMAs here.
+Perception is folded into the first-layer weights, turning the raw 9/27-cell
+neighborhood and MLP projection into a K-chunked matmul. Strict parity runs use
+IEEE fp32. Real CUDA training follows cuDNN's TF32 policy so Ada tensor cores
+accelerate both the Triton forward dots and equivalent flattened backward GEMMs.
 
 Fire mask uses counter-based RNG — tl.rand(seed, flat_cell_index) — so it is
 deterministic given (seed, step): backward and torch.utils.checkpoint replays
 recompute it exactly, and the standalone `fire_mask()` helper reproduces it
 bit-for-bit for the eager reference in parity tests. Never torch's stateful RNG.
 
-Backward (FusedNCAStep.backward) saves only each step's input state (16 ch —
-8x smaller than hidden) and recomputes internals by replaying the forward
-kernel with SAVE=True (one launch materializes percept, h_lin, x_mid in flat
-layout), then backprops analytically: a fused gate kernel (life+clamp+fire),
-cuBLAS mms for the MLP grads, and a perception-transpose kernel for the
-input grad. No cuDNN grouped convs anywhere — their groups=16 engine paths
-are catastrophically slow (measured: 74% of 2D backward, 60% of 3D).
+Backward saves only input states (16 ch — 8x smaller than hidden), replays the
+forward kernel with SAVE=True, then backprops analytically with a fused gate
+kernel, cuBLAS MLP GEMMs, and a perception-transpose kernel. `FusedNCARollout`
+owns an entire trajectory as one autograd node, reusing the large scratch
+buffers and aggregating parameter gradients in reverse time. No cuDNN grouped
+convs anywhere — their groups=16 engine paths are catastrophically slow.
 
 The eager trainer models remain the permanent reference implementation; this
 file, the eager models, and the Metal shaders form a three-way numerical
@@ -145,6 +143,7 @@ if HAS_TRITON:
         DLO: tl.constexpr, DHI: tl.constexpr,
         HIDDEN: tl.constexpr, COND: tl.constexpr,
         FILM: tl.constexpr, CLAMP: tl.constexpr, SAVE: tl.constexpr,
+        DOT_PRECISION: tl.constexpr,
         BLOCK: tl.constexpr, BK: tl.constexpr,
     ):
         pid = tl.program_id(0)
@@ -181,7 +180,7 @@ if HAS_TRITON:
             addr = (b[:, None] * CHANNELS + c[None, :]) * S + plane
             a = tl.load(x_ptr + addr, mask=inb, other=0.0)
             wblk = tl.load(w1eff_ptr + j[:, None] * HIDDEN + hr[None, :])
-            acc += tl.dot(a, wblk, input_precision="ieee")
+            acc += tl.dot(a, wblk, input_precision=DOT_PRECISION)
         acc += tl.load(b1_ptr + hr)[None, :]
         if COND > 0:
             for i in tl.static_range(COND):
@@ -202,7 +201,7 @@ if HAS_TRITON:
 
         cr = tl.arange(0, CHANNELS)
         w2blk = tl.load(w2t_ptr + hr[:, None] * CHANNELS + cr[None, :])
-        dxv = tl.dot(h, w2blk, input_precision="ieee") + tl.load(b2_ptr + cr)[None, :]
+        dxv = tl.dot(h, w2blk, input_precision=DOT_PRECISION) + tl.load(b2_ptr + cr)[None, :]
 
         fire = tl.rand(seed, offs) <= fire_rate
         xoff = (b[:, None] * CHANNELS + cr[None, :]) * S + sp[:, None]
@@ -470,13 +469,13 @@ def _geometry(x, dims):
 
 def _launch_step(x, w1eff, b1, w1cond, w2t, b2, cond, gamma, beta,
                  seed_step, fire_rate, clamp, dims, cond_n, film,
-                 save_bufs=None):
+                 save_bufs=None, fast_math=False, out=None):
     b, s, n, wd, hd, dd = _geometry(x, dims)
     nk = 3 if dims == 2 else 4
     nb = 9 if dims == 2 else 27
     hidden = w2t.shape[0]
     dlo, dhi = (-1, 2) if dims == 3 else (0, 1)
-    x_mid = torch.empty_like(x)
+    x_mid = torch.empty_like(x) if out is None else out
     dummy = b1  # dead pointer when a flag is off
     if save_bufs is not None:
         percept_buf, hlin_buf = save_bufs
@@ -496,15 +495,16 @@ def _launch_step(x, w1eff, b1, w1cond, w2t, b2, cond, gamma, beta,
         DLO=dlo, DHI=dhi,
         HIDDEN=hidden, COND=cond_n,
         FILM=film, CLAMP=clamp is not None, SAVE=save_bufs is not None,
+        DOT_PRECISION="tf32" if fast_math else "ieee",
         BLOCK=64, BK=32, num_warps=8,
     )
     return x_mid
 
 
-def _launch_life(x, x_mid, dims):
+def _launch_life(x, x_mid, dims, out=None):
     b, s, n, wd, hd, dd = _geometry(x, dims)
     dlo, dhi = (-1, 2) if dims == 3 else (0, 1)
-    x_out = torch.empty_like(x)
+    x_out = torch.empty_like(x) if out is None else out
     grid = (triton.cdiv(n, 128),)
     _nca_life_fwd[grid](
         x, x_mid, x_out,
@@ -519,6 +519,109 @@ def _launch_life(x, x_mid, dims):
 # Autograd
 # --------------------------------------------------------------------------
 
+def _new_backward_scratch(x, hidden, dims):
+    """Allocate buffers reusable across steps of a rollout backward."""
+    nk = 3 if dims == 2 else 4
+    _, _, p_total, _, _, _ = _geometry(x, dims)
+    return {
+        "percept": torch.empty(CH * nk, p_total, device=x.device),
+        "h_lin": torch.empty(hidden, p_total, device=x.device),
+        "x_mid": torch.empty_like(x),
+        "g1": torch.empty_like(x),
+        "ddx": torch.empty(CH, p_total, device=x.device),
+        "dx": torch.empty_like(x),
+    }
+
+
+def _backward_step(x, g, w1, b1, w2, b2, cond, gamma, beta,
+                   seed_step, fire_rate, clamp, dims, cond_n, film,
+                   fast_math, scratch=None):
+    """Analytic backward for one step, optionally reusing rollout buffers."""
+    hidden = w1.shape[0]
+    nk = 3 if dims == 2 else 4
+    pch = CH * nk
+    bsz, s, p_total, wd, hd, dd = _geometry(x, dims)
+    dlo, dhi = (-1, 2) if dims == 3 else (0, 1)
+    if scratch is None:
+        scratch = _new_backward_scratch(x, hidden, dims)
+    percept_f = scratch["percept"]
+    h_lin_f = scratch["h_lin"]
+    x_mid = scratch["x_mid"]
+    g1 = scratch["g1"]
+    ddx_f = scratch["ddx"]
+    dx_in = scratch["dx"]
+
+    # Replay once. The gate needs RAW pre-clamp x_mid; replaying with a clamp
+    # would make the boundary test vacuously true and leak gradients at ±8.
+    w1eff, w1cond, w2t = _folded(w1, w2, dims, cond_n)
+    _launch_step(x, w1eff, b1, w1cond, w2t, b2, cond, gamma, beta,
+                 seed_step, fire_rate, None, dims, cond_n, film,
+                 save_bufs=(percept_f, h_lin_f), fast_math=fast_math,
+                 out=x_mid)
+    grid = (triton.cdiv(p_total, 128),)
+    _nca_percept_fwd[grid](
+        x, percept_f,
+        p_total, s, p_total, wd, hd, dd,
+        DIMS=dims, NK=nk, DLO=dlo, DHI=dhi,
+        BLOCK=128, num_warps=4,
+    )
+
+    # life + clamp + fire gates
+    g = g.contiguous()
+    _nca_bwd_gates[grid](
+        x, x_mid, g, g1, ddx_f,
+        p_total, s, p_total, wd, hd, dd,
+        seed_step, fire_rate, clamp if clamp is not None else 0.0,
+        DIMS=dims, DLO=dlo, DHI=dhi,
+        CLAMP=clamp is not None, BLOCK=128, num_warps=4,
+    )
+
+    # MLP backward as flat GEMMs. Match real eager CUDA training's TF32
+    # policy; the parity gate disables it and takes the strict IEEE branch.
+    if film:
+        gam_f = gamma.T.reshape(hidden, bsz, 1)
+        h_f = F.relu((h_lin_f.reshape(hidden, bsz, -1) * (1 + gam_f)
+                      + beta.T.reshape(hidden, bsz, 1))
+                     .reshape(hidden, p_total))
+    else:
+        h_f = F.relu(h_lin_f)
+    previous_tf32 = torch.backends.cuda.matmul.allow_tf32
+    change_tf32 = previous_tf32 != fast_math
+    if change_tf32:
+        torch.backends.cuda.matmul.allow_tf32 = fast_math
+    try:
+        dw2 = ddx_f @ h_f.T
+        db2 = ddx_f.sum(1)
+        dh_pre_f = (w2.T @ ddx_f) * (h_f > 0).float()
+        if film:
+            prod = (dh_pre_f * h_lin_f).reshape(hidden, bsz, -1)
+            dgamma = prod.sum(2).T.contiguous()
+            dbeta = dh_pre_f.reshape(hidden, bsz, -1).sum(2).T.contiguous()
+            dh_lin_f = (dh_pre_f.reshape(hidden, bsz, -1) * (1 + gam_f)
+                        ).reshape(hidden, p_total)
+        else:
+            dgamma = dbeta = None
+            dh_lin_f = dh_pre_f
+        dw1 = torch.empty_like(w1)
+        dw1[:, :pch] = dh_lin_f @ percept_f.T
+        if cond_n:
+            dw1[:, pch:] = dh_lin_f.reshape(hidden, bsz, -1).sum(2) @ cond
+        db1 = dh_lin_f.sum(1)
+        dpercept_f = w1[:, :pch].T @ dh_lin_f
+    finally:
+        if change_tf32:
+            torch.backends.cuda.matmul.allow_tf32 = previous_tf32
+
+    # perception transpose + residual
+    _nca_bwd_percept[grid](
+        dpercept_f.contiguous(), g1, dx_in,
+        p_total, s, p_total, wd, hd, dd,
+        DIMS=dims, NK=nk, DLO=dlo, DHI=dhi,
+        BLOCK=128, num_warps=4,
+    )
+    return dx_in, dw1, db1, dw2, db2, dgamma, dbeta
+
+
 class FusedNCAStep(torch.autograd.Function):
     """One NCA step: x_out = life(clamp(x + mlp(percept(x), cond, film) * fire)).
 
@@ -529,108 +632,115 @@ class FusedNCAStep(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, x, w1, b1, w2, b2, cond, gamma, beta,
-                seed_step, fire_rate, clamp, dims, cond_n, film):
+                seed_step, fire_rate, clamp, dims, cond_n, film, fast_math):
         x = x.contiguous()
         w1eff, w1cond, w2t = _folded(w1, w2, dims, cond_n)
         cond_c = cond.contiguous() if cond_n else None
         gamma_c = gamma.contiguous() if film else None
         beta_c = beta.contiguous() if film else None
         x_mid = _launch_step(x, w1eff, b1, w1cond, w2t, b2, cond_c, gamma_c, beta_c,
-                             seed_step, fire_rate, clamp, dims, cond_n, film)
+                             seed_step, fire_rate, clamp, dims, cond_n, film,
+                             fast_math=fast_math)
         x_out = _launch_life(x, x_mid, dims)
         ctx.save_for_backward(x, w1, b1, w2, b2,
                               cond_c if cond_n else None,
                               gamma_c if film else None,
                               beta_c if film else None)
-        ctx.cfg = (seed_step, fire_rate, clamp, dims, cond_n, film)
+        ctx.cfg = (seed_step, fire_rate, clamp, dims, cond_n, film, fast_math)
         return x_out
 
     @staticmethod
     def backward(ctx, g):
         x, w1, b1, w2, b2, cond, gamma, beta = ctx.saved_tensors
-        seed_step, fire_rate, clamp, dims, cond_n, film = ctx.cfg
-        hidden = w1.shape[0]
-        nk = 3 if dims == 2 else 4
-        pch = CH * nk
-        bsz, s, p_total, wd, hd, dd = _geometry(x, dims)
-        dlo, dhi = (-1, 2) if dims == 3 else (0, 1)
-        dev = x.device
-
+        seed_step, fire_rate, clamp, dims, cond_n, film, fast_math = ctx.cfg
         with torch.no_grad():
-            # --- replay forward once, materializing internals (flat layout) ---
-            w1eff, w1cond, w2t = _folded(w1, w2, dims, cond_n)
-            percept_f = torch.empty(pch, p_total, device=dev)
-            h_lin_f = torch.empty(hidden, p_total, device=dev)
-            # clamp=None: gates must see the RAW pre-clamp x_mid — the clamp
-            # gate |x_mid*life| <= 8 is vacuous on already-clamped values
-            # (gradient would leak at the boundary; eager blocks it there)
-            x_mid = _launch_step(x, w1eff, b1, w1cond, w2t, b2, cond, gamma, beta,
-                                 seed_step, fire_rate, None, dims, cond_n, film,
-                                 save_bufs=(percept_f, h_lin_f))
-            grid = (triton.cdiv(p_total, 128),)
-            _nca_percept_fwd[grid](
-                x, percept_f,
-                p_total, s, p_total, wd, hd, dd,
-                DIMS=dims, NK=nk, DLO=dlo, DHI=dhi,
-                BLOCK=128, num_warps=4,
-            )
-
-            # --- fused gates: life + clamp + fire -> g1, ddx ---
-            g = g.contiguous()
-            g1 = torch.empty_like(x)
-            ddx_f = torch.empty(CH, p_total, device=dev)
-            grid = (triton.cdiv(p_total, 128),)
-            _nca_bwd_gates[grid](
-                x, x_mid, g, g1, ddx_f,
-                p_total, s, p_total, wd, hd, dd,
-                seed_step, fire_rate, clamp if clamp is not None else 0.0,
-                DIMS=dims, DLO=dlo, DHI=dhi,
-                CLAMP=clamp is not None, BLOCK=128, num_warps=4,
-            )
-
-            # --- MLP backward as flat cuBLAS ---
-            if film:
-                gam_f = gamma.T.reshape(hidden, bsz, 1)                  # (H, B, 1)
-                h_f = F.relu((h_lin_f.reshape(hidden, bsz, -1) * (1 + gam_f)
-                              + beta.T.reshape(hidden, bsz, 1))
-                             .reshape(hidden, p_total))
-            else:
-                h_f = F.relu(h_lin_f)
-            dw2 = ddx_f @ h_f.T
-            db2 = ddx_f.sum(1)
-            dh_pre_f = (w2.T @ ddx_f) * (h_f > 0).float()
-            if film:
-                prod = (dh_pre_f * h_lin_f).reshape(hidden, bsz, -1)
-                dgamma = prod.sum(2).T.contiguous()                      # (B, H)
-                dbeta = dh_pre_f.reshape(hidden, bsz, -1).sum(2).T.contiguous()
-                dh_lin_f = (dh_pre_f.reshape(hidden, bsz, -1) * (1 + gam_f)
-                            ).reshape(hidden, p_total)
-            else:
-                dgamma = dbeta = None
-                dh_lin_f = dh_pre_f
-            dw1 = torch.empty_like(w1)
-            dw1[:, :pch] = dh_lin_f @ percept_f.T
-            if cond_n:
-                dw1[:, pch:] = dh_lin_f.reshape(hidden, bsz, -1).sum(2) @ cond
-            db1 = dh_lin_f.sum(1)
-            dpercept_f = w1[:, :pch].T @ dh_lin_f                        # (PCH, P)
-
-            # --- perception transpose + residual, one gather kernel ---
-            dx_in = torch.empty_like(x)
-            grid = (triton.cdiv(p_total, 128),)
-            _nca_bwd_percept[grid](
-                dpercept_f.contiguous(), g1, dx_in,
-                p_total, s, p_total, wd, hd, dd,
-                DIMS=dims, NK=nk, DLO=dlo, DHI=dhi,
-                BLOCK=128, num_warps=4,
-            )
+            dx_in, dw1, db1, dw2, db2, dgamma, dbeta = _backward_step(
+                x, g, w1, b1, w2, b2, cond, gamma, beta,
+                seed_step, fire_rate, clamp, dims, cond_n, film, fast_math)
 
         return (dx_in, dw1, db1, dw2, db2, None, dgamma, dbeta,
-                None, None, None, None, None, None)
+                None, None, None, None, None, None, None)
+
+
+class FusedNCARollout(torch.autograd.Function):
+    """A whole trajectory as one autograd node with reusable scratch buffers.
+
+    The per-step Function is convenient but makes Python's autograd engine
+    enter 48–96 custom backward nodes and repeatedly allocates the same large
+    temporaries. This variant saves the same input states in one contiguous
+    history, runs the reverse-time recurrence itself, and reuses one scratch
+    set throughout backward.
+    """
+
+    @staticmethod
+    def forward(ctx, x, w1, b1, w2, b2, cond, gamma, beta,
+                seed, step_offset, steps, fire_rate, clamp, dims, cond_n, film,
+                cond_sequence, fast_math):
+        x = x.contiguous()
+        steps = int(steps)
+        w1eff, w1cond, w2t = _folded(w1, w2, dims, cond_n)
+        cond_c = cond.contiguous() if cond_n else None
+        gamma_c = gamma.contiguous() if film else None
+        beta_c = beta.contiguous() if film else None
+
+        states = torch.empty((steps + 1,) + tuple(x.shape), device=x.device,
+                             dtype=x.dtype)
+        states[0].copy_(x)
+        x_mid = torch.empty_like(x)
+        for step in range(steps):
+            cond_step = cond_c[step] if cond_sequence else cond_c
+            _launch_step(
+                states[step], w1eff, b1, w1cond, w2t, b2,
+                cond_step, gamma_c, beta_c, _mix_seed(seed, step_offset + step),
+                fire_rate, clamp, dims, cond_n, film,
+                fast_math=fast_math, out=x_mid,
+            )
+            _launch_life(states[step], x_mid, dims, out=states[step + 1])
+
+        ctx.save_for_backward(states, w1, b1, w2, b2,
+                              cond_c if cond_n else None,
+                              gamma_c if film else None,
+                              beta_c if film else None)
+        ctx.cfg = (seed, step_offset, steps, fire_rate, clamp, dims, cond_n, film,
+                   cond_sequence, fast_math)
+        return states[-1]
+
+    @staticmethod
+    def backward(ctx, g):
+        states, w1, b1, w2, b2, cond, gamma, beta = ctx.saved_tensors
+        seed, step_offset, steps, fire_rate, clamp, dims, cond_n, film, cond_sequence, fast_math = ctx.cfg
+        scratch = _new_backward_scratch(states[0], w1.shape[0], dims)
+        accum = None
+        previous_tf32 = torch.backends.cuda.matmul.allow_tf32
+        torch.backends.cuda.matmul.allow_tf32 = fast_math
+        try:
+            with torch.no_grad():
+                for step in range(steps - 1, -1, -1):
+                    cond_step = cond[step] if cond_sequence else cond
+                    result = _backward_step(
+                        states[step], g, w1, b1, w2, b2,
+                        cond_step, gamma, beta, _mix_seed(seed, step_offset + step),
+                        fire_rate, clamp, dims, cond_n, film, fast_math, scratch)
+                    g, dw1, db1, dw2, db2, dgamma, dbeta = result
+                    step_grads = [dw1, db1, dw2, db2]
+                    if film:
+                        step_grads.extend([dgamma, dbeta])
+                    if accum is None:
+                        accum = step_grads
+                    else:
+                        torch._foreach_add_(accum, step_grads)
+        finally:
+            torch.backends.cuda.matmul.allow_tf32 = previous_tf32
+
+        dw1, db1, dw2, db2 = accum[:4]
+        dgamma, dbeta = accum[4:] if film else (None, None)
+        return (g, dw1, db1, dw2, db2, None, dgamma, dbeta,
+                None, None, None, None, None, None, None, None, None, None)
 
 
 def fused_nca_step(x, w1, b1, w2, b2, *, cond=None, gamma=None, beta=None,
-                   seed=0, step=0, fire_rate=0.5, clamp=8.0):
+                   seed=0, step=0, fire_rate=0.5, clamp=8.0,
+                   fast_math=None):
     """One fused NCA step. Drop-in for the eager trainer forward()s.
 
     x: (B, 16, H, W) or (B, 16, D, H, W). w1: (HIDDEN, PCH + cond_n) — pass
@@ -645,9 +755,52 @@ def fused_nca_step(x, w1, b1, w2, b2, *, cond=None, gamma=None, beta=None,
     """
     if not HAS_TRITON:
         raise RuntimeError("triton not available — use the eager path")
+    if fast_math is None:
+        fast_math = torch.backends.cudnn.allow_tf32
     dims = x.dim() - 2
     cond_n = cond.shape[1] if cond is not None else 0
     film = gamma is not None
     return FusedNCAStep.apply(x, w1, b1, w2, b2, cond, gamma, beta,
                               _mix_seed(seed, step), fire_rate, clamp,
-                              dims, cond_n, film)
+                              dims, cond_n, film, fast_math)
+
+
+def fused_nca_rollout(x, w1, b1, w2, b2, steps, *, cond=None, gamma=None,
+                      beta=None, seed=0, step_offset=0, fire_rate=0.5, clamp=8.0,
+                      fast_math=None):
+    """Run a trajectory as one autograd node.
+
+    `cond` may be static `(B, C)` or a per-step sequence `(T, B, C)`. FiLM
+    gamma/beta are static for the trajectory. Under `torch.no_grad()` this
+    uses the lightweight per-step inference path instead of saving history.
+    """
+    if not HAS_TRITON:
+        raise RuntimeError("triton not available — use the eager path")
+    steps = int(steps)
+    if steps < 1:
+        return x
+    if fast_math is None:
+        fast_math = torch.backends.cudnn.allow_tf32
+    dims = x.dim() - 2
+    cond_n = cond.shape[-1] if cond is not None else 0
+    cond_sequence = cond is not None and cond.dim() == 3
+    if cond_sequence and cond.shape[0] != steps:
+        raise ValueError(f"cond sequence has {cond.shape[0]} steps, expected {steps}")
+    film = gamma is not None
+
+    if not torch.is_grad_enabled():
+        for step in range(steps):
+            cond_step = cond[step] if cond_sequence else cond
+            x = fused_nca_step(
+                x, w1, b1, w2, b2, cond=cond_step, gamma=gamma, beta=beta,
+                seed=seed, step=step_offset + step,
+                fire_rate=fire_rate, clamp=clamp,
+                fast_math=fast_math,
+            )
+        return x
+
+    return FusedNCARollout.apply(
+        x, w1, b1, w2, b2, cond, gamma, beta,
+        seed, step_offset, steps, fire_rate, clamp, dims, cond_n, film,
+        cond_sequence, fast_math,
+    )
