@@ -76,10 +76,17 @@ class PooledNCA(nn.Module):
         chans = x[:, 4:4 + self.npool]
         return (chans * alive_f).sum(dim=(2, 3), keepdim=True) / n   # (B,npool,1,1)
 
-    def forward(self, x, state):
+    def forward(self, x, state, flag_mask=None):
+        """flag_mask: optional (B,) in {0,1}. Zeroed entries have their state
+        flag withheld for this step, so the creature must hold its own state.
+        The only place that state can live is the global variable — this is what
+        turns g from a readout of the body into a memory the body depends on."""
         pre = self.alive(x)
         p = F.conv2d(x, self.percept_w, padding=1, groups=CH)
-        smap = state.float()[:, None, None, None].expand(-1, 1, *x.shape[2:])
+        s = state.float()
+        if flag_mask is not None:
+            s = s * flag_mask.float()
+        smap = s[:, None, None, None].expand(-1, 1, *x.shape[2:])
         g = self.pooled(x, pre.float()).expand(-1, -1, *x.shape[2:])
         dx = self.w2(F.relu(self.w1(torch.cat([p, smap, g], dim=1))))
         fire = (torch.rand(x.shape[0], 1, *x.shape[2:], device=x.device) <= FIRE_RATE).float()

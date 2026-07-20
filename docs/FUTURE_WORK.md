@@ -127,9 +127,45 @@ differing only in pooling): ratios 0.74 / 0.95 / 0.87 / 0.94 over the first four
 1k windows. Consistent sign, but four noisy medians is weak evidence; revisit
 with the full curves.
 
+### Second measurement: g is proprioceptive, not a driver
+
+`tools/pooled_behavior.py`, arm F at 14k iterations, 5 independent rollouts
+(the timing statistic flips sign between single runs — one rollout gave
++0.051 at lag +16 and the next +0.033 at lag -32, pure noise crossing a
+threshold, so everything below is averaged over trials):
+
+- **Level coupling**: eta^2 of g[0] against nearest-pose identity is
+  **0.864 +/- 0.002**. Extremely tight. 86% of g's variance is explained by
+  which pose the body currently occupies.
+- **Transition timing**: peak cross-correlation +0.041 +/- 0.014, at the edge of
+  the lag window, with a shallow U-shape (negative near lag 0, weakly positive
+  at both extremes). That shape is what quasi-periodic transitions produce, not
+  a causal lead.
+- The creature freely traverses all 12 poses of the ring, transitioning about
+  once per 15 steps, dwelling 22-356 steps.
+
+So g reliably *encodes* what the body is doing and does not *drive* what it does
+next. It is a sense organ, not a will.
+
+**Why, and what to do about it.** The creature is handed its state flag `st`
+every single step. It has no reason to use g to remember anything, because the
+answer is supplied for free — g is redundant with an external signal, so
+gradient descent settles for making it a readout. To make g load-bearing, take
+the answer away: withhold the flag for stretches of the rollout and force the
+creature to maintain its own state across the gap. The only place that state can
+live is the global variable.
+
+That is `--flag-dropout` in `train_constellation.py` (implemented, not yet run).
+If it works, g stops being proprioception and becomes memory — and a creature
+whose mood persists in a variable no cell owns is much closer to "I don't
+necessarily know what it's going to do" than anything driven by a flag we set.
+
 Open questions the current arms should answer:
 - ~~Does g carry dynamics, or settle to a constant?~~ **Answered: slow variable,
-  tau ~100 steps.** Next: does g's motion correspond to visible behaviour?
+  tau ~100 steps.**
+- ~~Does g correspond to visible behaviour?~~ **Answered: yes, but as a readout
+  (eta^2 0.86, no timing lead).**
+- Does `--flag-dropout` convert g from proprioception into memory?
 - Does it fix 96^2 coherence, where strict locality demonstrably failed?
 - Does damage recovery survive, or does the global variable make wounds global?
 - If it works, it needs Metal + Triton support and an NCAP parser before it can

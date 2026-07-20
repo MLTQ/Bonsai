@@ -83,6 +83,10 @@ def main():
                     help="override DWELL_P (dense rings want 0: arrival is free)")
     ap.add_argument("--resume", default=None,
                     help="warm start from an exported .nca (weights only; pool restarts)")
+    ap.add_argument("--flag-dropout", type=float, default=0.0,
+                    help="pooled only: fraction of rollout SEGMENTS run with the "
+                         "state flag withheld, forcing the creature to hold its "
+                         "own state in the global variable")
     ap.add_argument("--pooled", type=int, default=0,
                     help="N globally-broadcast feedback channels (see pooled_nca.py). "
                          "0 = strict locality. Incompatible with --fused.")
@@ -131,6 +135,11 @@ def main():
                     torch.from_numpy(v)[None, None].to(device))
         print(f"motion mask: {float((v > 0.1).mean()) * 100:.0f}% of pixels move", flush=True)
 
+    assert not (args.flag_dropout and not args.pooled), \
+        "--flag-dropout only means something with --pooled: without a global " \
+        "variable there is nowhere for the withheld state to live"
+    assert not (args.flag_dropout and args.fused), \
+        "--fused takes the strict-local path and would silently ignore --flag-dropout"
     if args.pooled:
         assert not args.fused, "the fused kernel assumes strict-local perception"
         from pooled_nca import PooledNCA, export_pooled
@@ -225,6 +234,14 @@ def main():
                     x, w1f, model.w1.bias, w2f, model.w2.bias, seg,
                     cond=cond_flag, seed=it, step_offset=gstep,
                     fire_rate=train_states.FIRE_RATE, clamp=8.0)
+            elif args.flag_dropout > 0:
+                # Withhold the flag for whole segments, not single steps: a
+                # one-step gap is trivially bridged by the local state, while a
+                # segment-long gap can only be crossed by something that
+                # persists globally.
+                keep = (torch.rand(x.shape[0], device=device) >= args.flag_dropout).float()
+                for _ in range(seg):
+                    x = model(x, st, flag_mask=keep)
             else:
                 for _ in range(seg):
                     x = model(x, st)
