@@ -1,0 +1,11 @@
+13 poses across 2 states, transits [np.str_('walk'), np.str_('walk')], device mps, batch 8, pool 1024
+motion mask: 26% of pixels move
+pooled: 4 global feedback channels
+iter    50  loss 0.07841  0.50 it/s
+iter   100  loss 0.04821  0.48 it/s
+iter   150  loss 0.03994  0.46 it/s
+iter   200  loss 0.04245  0.45 it/s
+iter   250  loss 0.04683  0.45 it/s
+  checkpoint -> ../weights/G_pooled96.nca
+iter   300  loss 0.04548  0.45 it/s
+iter   350  loss 0.03517  0.45 it/s

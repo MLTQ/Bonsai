@@ -230,26 +230,34 @@ def draw_claudeguy(phase=0.0, blink=0.0, look=(0.0, 0.0), petal_flex=None,
         ang += wiggle * 0.3 * np.sin(phase * 2 + k * 1.1)  # back-and-forth waggle
         # deterministic per-petal irregularity: length and plumpness vary
         wob = np.sin(k * 4.9) * 0.5 + np.sin(k * 1.3) * 0.5
-        length = (11.2 + 1.4 * wob + 1.2 * petal_flex[k]) * K
-        r0 = (2.35 + 0.2 * np.sin(k * 3.1)) * K   # slowly tapering cylinder...
-        r1 = (1.95 + 0.15 * np.cos(k * 2.2)) * K  # ...with a dome cap (the last sweep sphere)
+        # Reach is budgeted so the tips land ~6 voxels short of the wall at any
+        # grid size: 5.0 + 6.4 + wob + flex ~= 12.5 of the 16 half-grid units.
+        # Petals clear the 7.0-unit face disk by about 0.75 of its radius, which
+        # is the ratio the reference illustration holds.
+        length = (6.4 + 0.8 * wob + 1.0 * petal_flex[k]) * K
+        r0 = (2.45 + 0.20 * np.sin(k * 3.1)) * K  # fat through the belly...
+        r1 = (1.80 + 0.15 * np.cos(k * 2.2)) * K  # ...rounding into a dome cap
         dx, dy = np.cos(ang), np.sin(ang)
         pts = []
-        n = 10
+        n = 12
         for i in range(n):
             t = i / (n - 1)
-            r = (6.0 * K) + length * t
+            r = (5.0 * K) + length * t
             # nearly straight petals; just a whisper of backward cup for depth
             z = fz - (1.4 * t * t + 0.25 * wob * t) * K
             sag = droop * 4.5 * t * t * K  # melancholy: every petal tip sinks
             pts.append((C + dx * r, fy + dy * r - sag, z))
-        _swept(vol, pts, r0, r1, PETAL, soft=1.3 * K)
+        # Plump clay petal, not a spike: swell to the widest point about a third
+        # of the way out, then round off into a dome cap.
+        _swept(vol, pts[:4], r0 * 0.82, r0, PETAL, soft=1.3 * K)
+        _swept(vol, pts[3:], r0, r1, PETAL, soft=1.3 * K)
         # a slightly darker, thinner back layer gives the petals depth
         back = [(p[0], p[1], p[2] - 1.6 * K) for p in pts]
         _swept(vol, back, r0 * 0.85, r1 * 0.85, PETAL_DEEP, soft=1.2 * K)
 
     # --- Face: one clean circular disk (round from the front, domed in depth) --
-    _ellipsoid(vol, C, fy, fz + 2.6 * K, 8.9 * K, 8.9 * K, 3.4 * K, FACE, soft=1.0 * K)
+    # Drawn after the petals so the disk reads as sitting in front of the ring.
+    _ellipsoid(vol, C, fy, fz + 2.6 * K, 7.0 * K, 7.0 * K, 3.6 * K, FACE, soft=1.0 * K)
 
     if sheet is not None:
         _paint_sheet(vol, sheet)
@@ -261,15 +269,18 @@ def draw_claudeguy(phase=0.0, blink=0.0, look=(0.0, 0.0), petal_flex=None,
     eo = 1.0 - blink
     lx, ly = look
     if ex["eyes"] == "balls":
-        _sphere(vol, C - 3.9 * K, fy + 2.4 * K, fz + 6.4 * K, 4.0 * K * (0.5 + 0.5 * eo),
-                EYE_WHITE, soft=0.6 * K)
-        _sphere(vol, C + 3.9 * K, fy + 3.0 * K, fz + 6.8 * K, 4.6 * K * (0.5 + 0.5 * eo),
-                EYE_WHITE, soft=0.6 * K)
+        # Eyes sit clearly inside the 9.4-unit face disk and read as two whites
+        # with dark centres; the pupils are pushed well forward of the sclera so
+        # the alpha-weighted projection cannot wash them out to grey.
+        _sphere(vol, C - 3.05 * K, fy + 1.8 * K, fz + 5.0 * K, 2.50 * K * (0.5 + 0.5 * eo),
+                EYE_WHITE, soft=0.45 * K)
+        _sphere(vol, C + 3.05 * K, fy + 2.1 * K, fz + 5.3 * K, 2.80 * K * (0.5 + 0.5 * eo),
+                EYE_WHITE, soft=0.45 * K)
         if blink < 0.85:
-            _sphere(vol, C - 3.9 * K + lx * K, fy + (2.2 + ly) * K, fz + 9.8 * K,
-                    1.8 * ex["pupil"] * K, PUPIL, soft=0.4 * K)
-            _sphere(vol, C + 3.9 * K + lx * K, fy + (2.8 + ly) * K, fz + 10.8 * K,
-                    2.0 * ex["pupil"] * K, PUPIL, soft=0.4 * K)
+            _sphere(vol, C - 3.05 * K + lx * K, fy + (1.7 + ly) * K, fz + 7.2 * K,
+                    1.38 * ex["pupil"] * K, PUPIL, soft=0.22 * K)
+            _sphere(vol, C + 3.05 * K + lx * K, fy + (2.0 + ly) * K, fz + 7.5 * K,
+                    1.55 * ex["pupil"] * K, PUPIL, soft=0.22 * K)
     else:
         for side, ecx, ecy in ((-1, -3.9, 2.4), (1, 3.9, 3.0)):
             if ex["eyes"] == "happy":       # ^ ^  (upward arcs)
@@ -296,22 +307,64 @@ def draw_claudeguy(phase=0.0, blink=0.0, look=(0.0, 0.0), petal_flex=None,
             _stroke_on_face(vol, brow, 5.2, 0.5, PUPIL)
 
     # --- Mouth, per expression ------------------------------------------------
-    for t in np.linspace(-1.0, 1.0, 15):
-        mx = 2.6 * t
+    for t in np.linspace(-1.0, 1.0, 21):
+        mx = 2.2 * t
         if ex["mouth"] == "w":
-            my = -2.9 - 1.05 * abs(np.sin(np.pi * t))
+            my = -3.0 - 0.90 * abs(np.sin(np.pi * t))
         elif ex["mouth"] == "frown":
-            my = -3.0 - 1.15 * t * t
+            my = -3.1 - 1.00 * t * t
         elif ex["mouth"] == "wavy":
-            my = -3.4 + 0.5 * np.sin(3 * np.pi * t)
+            my = -3.3 + 0.45 * np.sin(3 * np.pi * t)
         else:  # flat (small, worried)
-            mx = 1.6 * t
-            my = -3.3
-        _sphere(vol, C + mx * K, fy + my * K, fz + 8.0 * K, 0.6 * K, MOUTH, soft=0.35 * K)
+            mx = 1.4 * t
+            my = -3.2
+        # Forward of the sclera, same as the pupils, or the disk swallows it.
+        _sphere(vol, C + mx * K, fy + my * K, fz + 7.4 * K, 0.72 * K, MOUTH, soft=0.2 * K)
 
     small = vol.reshape(GRID3, SS, GRID3, SS, GRID3, SS, 4).mean(axis=(1, 3, 5))
     small[..., :3] *= small[..., 3:4]
     return np.ascontiguousarray(small.transpose(2, 1, 0, 3)).astype(np.float32)
+
+
+FRAMES = 12
+BEHAVIORS = 2   # 0 = idle (breathe + blink), 1 = delight (petals flutter, ring waggle)
+
+
+def draw_cycle(phase, behavior):
+    """One frame of Claudeguy's limit cycle.
+
+    Loop-closure discipline, same as every generator here: every time-varying
+    term is an integer multiple of the base frequency, so frame FRAMES lands
+    exactly back on frame 0 and the NCA is never asked to learn a discontinuity.
+
+    idle     — a slow breath in the petal ring, one blink per cycle
+    delight  — petals flutter at 2x and the whole ring waggles, eyes stay wide
+    """
+    k = np.arange(N_PETALS)
+    if behavior == 0:
+        flex = 0.45 * np.sin(phase + k * 0.52)          # breath travelling around
+        # One blink, parked at mid-cycle so phase 0 (the rest pose every rollout
+        # is scored against most often) has the eyes open. |sin(phase)| would
+        # give two blinks per cycle AND shut the eyes exactly at frame 0.
+        blink = max(0.0, 1.0 - abs(np.sin((phase - np.pi) / 2.0)) * 7.0)
+        wiggle = 0.0
+    else:
+        flex = 0.85 * np.sin(2 * phase + k * 0.52)      # 2x: flutter
+        blink = 0.0
+        wiggle = 1.0
+    return draw_claudeguy(phase=phase, blink=blink, petal_flex=flex,
+                          expression="serene" if behavior else "neutral",
+                          wiggle=wiggle)
+
+
+def make_frames3d():
+    """(BEHAVIORS, FRAMES, GRID3, GRID3, GRID3, 4) float16 — the cyclic corpus."""
+    out = np.zeros((BEHAVIORS, FRAMES) + (GRID3,) * 3 + (4,), dtype=np.float16)
+    for f in range(FRAMES):
+        ph = 2 * np.pi * f / FRAMES
+        for b in range(BEHAVIORS):
+            out[b, f] = draw_cycle(ph, b)
+    return out
 
 
 def _preview(v, path):

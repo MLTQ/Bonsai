@@ -26,6 +26,34 @@ SWITCH_P = 0.12
 DWELL_P = 0.10   # low, and proximity-gated below: polish on arrival, never park
 
 
+def warm_start(model, path):
+    """Load weights from an exported NCA2 checkpoint so a finished run can carry on.
+
+    Only the update rule is saved by export(), so a resumed run re-fills its sample
+    pool from seed and restarts the LR schedule — pass --lr to pick up near where
+    the previous schedule left off rather than jumping back to 2e-3.
+    """
+    with open(path, "rb") as f:
+        assert f.read(4) == b"NCA2", f"{path} is not an NCA2 checkpoint"
+        ch, hidden, cond = (int(v) for v in np.fromfile(f, dtype="<i4", count=3))
+        np.fromfile(f, dtype="<f4", count=1)   # fire rate (fixed at train time)
+        want = (train_states.CH, train_states.HIDDEN, train_states.COND)
+        assert (ch, hidden, cond) == want, \
+            f"checkpoint is ch/hidden/cond {(ch, hidden, cond)}, this run wants {want} " \
+            f"(--hidden must match the run you are resuming)"
+        pin = ch * 3 + cond
+        w1 = np.fromfile(f, dtype="<f4", count=hidden * pin).reshape(hidden, pin)
+        b1 = np.fromfile(f, dtype="<f4", count=hidden)
+        w2 = np.fromfile(f, dtype="<f4", count=ch * hidden).reshape(ch, hidden)
+        b2 = np.fromfile(f, dtype="<f4", count=ch)
+    dev = model.w1.weight.device
+    model.w1.weight.data.copy_(torch.from_numpy(w1).to(dev)[..., None, None])
+    model.w1.bias.data.copy_(torch.from_numpy(b1).to(dev))
+    model.w2.weight.data.copy_(torch.from_numpy(w2).to(dev)[..., None, None])
+    model.w2.bias.data.copy_(torch.from_numpy(b2).to(dev))
+    print(f"warm start <- {path}", flush=True)
+
+
 def main():
     global DWELL_P, BATCH, POOL_SIZE
     ap = argparse.ArgumentParser()
@@ -53,6 +81,13 @@ def main():
                     help="fraction of rollouts using a 4x horizon (seed growth, persistence)")
     ap.add_argument("--dwell", type=float, default=None,
                     help="override DWELL_P (dense rings want 0: arrival is free)")
+    ap.add_argument("--resume", default=None,
+                    help="warm start from an exported .nca (weights only; pool restarts)")
+    ap.add_argument("--pooled", type=int, default=0,
+                    help="N globally-broadcast feedback channels (see pooled_nca.py). "
+                         "0 = strict locality. Incompatible with --fused.")
+    ap.add_argument("--lr", type=float, default=2e-3,
+                    help="initial LR; drop it when resuming a run that already annealed")
     args = ap.parse_args()
 
     BATCH, POOL_SIZE = args.batch, args.pool
@@ -96,8 +131,18 @@ def main():
                     torch.from_numpy(v)[None, None].to(device))
         print(f"motion mask: {float((v > 0.1).mean()) * 100:.0f}% of pixels move", flush=True)
 
-    model = StateNCA().to(device)
-    opt = torch.optim.Adam(model.parameters(), lr=2e-3)
+    if args.pooled:
+        assert not args.fused, "the fused kernel assumes strict-local perception"
+        from pooled_nca import PooledNCA, export_pooled
+        model = PooledNCA(npool=args.pooled).to(device)
+        save = export_pooled
+        print(f"pooled: {args.pooled} global feedback channels", flush=True)
+    else:
+        model = StateNCA().to(device)
+        save = export
+    if args.resume:
+        warm_start(model, args.resume)
+    opt = torch.optim.Adam(model.parameters(), lr=args.lr)
     sched = torch.optim.lr_scheduler.MultiStepLR(
         opt, milestones=[int(args.iters * 0.45), int(args.iters * 0.8)], gamma=0.25)
 
@@ -206,9 +251,9 @@ def main():
         if it % 50 == 0:
             print(f"iter {it:5d}  loss {loss.item():.5f}  {it/(time.time()-t0):.2f} it/s", flush=True)
         if it % 1000 == 0:
-            export(model, f"{args.out}.it{it}")
+            save(model, f"{args.out}.it{it}")
         if it % 250 == 0 or it == args.iters:
-            export(model, args.out)
+            save(model, args.out)
             print(f"  checkpoint -> {args.out}", flush=True)
 
 

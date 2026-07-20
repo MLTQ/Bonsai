@@ -20,8 +20,28 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 
-from shoggoth3d import BEHAVIORS, FRAMES, make_frames3d
 from target3d import GRID3
+
+# Bound by --creature at startup; shoggoth3d stays the default so every existing
+# launch command keeps working unchanged.
+BEHAVIORS = FRAMES = None
+make_frames3d = None
+
+
+def bind_creature(name):
+    """Point the trainer at a creature's frame generator.
+
+    The contract a creature module owes this trainer is exactly three names:
+    FRAMES (ints per cycle), BEHAVIORS (how many cond channels' worth of modes),
+    and make_frames3d() -> (BEHAVIORS, FRAMES, G, G, G, 4).
+    """
+    global BEHAVIORS, FRAMES, make_frames3d
+    mod = __import__(name)
+    missing = [a for a in ("FRAMES", "BEHAVIORS", "make_frames3d") if not hasattr(mod, a)]
+    assert not missing, f"{name} is missing {missing} — see train_cyclic3d.bind_creature"
+    FRAMES, BEHAVIORS = mod.FRAMES, mod.BEHAVIORS
+    make_frames3d = mod.make_frames3d
+    return mod
 
 CH = 16
 HIDDEN = 128
@@ -201,6 +221,9 @@ def main():
     ap.add_argument("--chunk", type=int, default=CHUNK)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else
                     ("mps" if torch.backends.mps.is_available() else "cpu"))
+    ap.add_argument("--creature", default="shoggoth3d",
+                    help="module supplying FRAMES, BEHAVIORS, make_frames3d "
+                         "(e.g. claudeguy3d)")
     ap.add_argument("--init", default=None, help="warm-start from an exported .nca")
     ap.add_argument("--compile", action="store_true",
                     help="torch.compile(reduce-overhead): fuse + CUDA-graph each step")
@@ -212,6 +235,8 @@ def main():
                     help="fix rollout length (avoids recompiles under --compile)")
     args = ap.parse_args()
     POOL_SIZE, BATCH, CHUNK = args.pool, args.batch, args.chunk
+    bind_creature(args.creature)
+    print(f"creature {args.creature}: {FRAMES} frames x {BEHAVIORS} behaviors", flush=True)
     print(f"grid {GRID3}^3, pool {POOL_SIZE}, batch {BATCH}, chunk {CHUNK}, "
           f"compile={args.compile}, ckpt={not args.no_ckpt}, fixedT={args.fixed_t}", flush=True)
 
