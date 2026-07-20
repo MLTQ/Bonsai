@@ -86,23 +86,44 @@ def _mix_seed(seed, step):
 
 
 # --------------------------------------------------------------------------
-# Weight-layout cache (rebuilt when the param version bumps)
+# Folded-weight cache (rebuilt when the param version bumps)
 # --------------------------------------------------------------------------
 
 _wcache = {}
 
 
-def _weights_t(w1, w2):
-    """w1t (PIN, H) and w2t (H, CH), contiguous fp32."""
-    key = (w1.data_ptr(), w2.data_ptr())
+def _folded(w1, w2, dims, cond_n):
+    """W1eff (KPAD, H) with perception folded in, w1cond (cond_n, H), w2t (H, CH).
+
+    W1eff[(c, n), h] = sum_k w1[h, c*nk+k] * tap_k[n]: perception + first MLP
+    layer as ONE matmul over the raw 9/27-cell neighborhood. Exact up to fp32
+    reassociation (parity gate: < 1e-5). The FLOP-exact alternative (explicit
+    taps + outer-product FMA accumulation) was tried and is 30x SLOWER — the
+    unrolled outer products spill registers and defeat Triton's codegen; the
+    K-chunked tl.dot keeps the MLP on the fast path.
+    """
+    key = (w1.data_ptr(), dims, cond_n)
     ver = (w1._version, w2._version)
     hit = _wcache.get(key)
     if hit is not None and hit[0] == ver:
         return hit[1]
     with torch.no_grad():
-        pair = (w1.T.contiguous(), w2.T.contiguous())
-    _wcache[key] = (ver, pair)
-    return pair
+        taps = perception_taps(dims).to(w1.device)          # (nk, NB)
+        nk, nb = taps.shape
+        hidden = w1.shape[0]
+        k_real = CH * nb
+        k_pad = -(-k_real // 32) * 32
+        w1p = w1[:, : CH * nk].reshape(hidden, CH, nk)       # (H, CH, nk)
+        w1eff = torch.zeros(k_pad, hidden, device=w1.device)
+        w1eff[:k_real] = torch.einsum("hck,kn->cnh", w1p, taps).reshape(k_real, hidden)
+        w1cond = (
+            w1[:, CH * nk :].T.contiguous()
+            if cond_n
+            else torch.zeros(1, hidden, device=w1.device)
+        )
+        trip = (w1eff, w1cond, w2.T.contiguous())
+    _wcache[key] = (ver, trip)
+    return trip
 
 
 if HAS_TRITON:
@@ -114,16 +135,17 @@ if HAS_TRITON:
     @triton.jit
     def _nca_step_fwd(
         x_ptr, out_ptr,
-        w1t_ptr, b1_ptr, w2t_ptr, b2_ptr,
+        w1eff_ptr, b1_ptr, w1cond_ptr, w2t_ptr, b2_ptr,
         cond_ptr, gamma_ptr, beta_ptr,
         percept_ptr, hlin_ptr,      # written only when SAVE (flat: row*BS+cell)
         N, S, BS, Wd, Hd, Dd,
         seed, fire_rate, clamp_v,
-        DIMS: tl.constexpr, NK: tl.constexpr,
+        DIMS: tl.constexpr, NB: tl.constexpr, NK: tl.constexpr,
+        K: tl.constexpr, KPAD: tl.constexpr,
         DLO: tl.constexpr, DHI: tl.constexpr,
         HIDDEN: tl.constexpr, COND: tl.constexpr,
         FILM: tl.constexpr, CLAMP: tl.constexpr, SAVE: tl.constexpr,
-        BLOCK: tl.constexpr,
+        BLOCK: tl.constexpr, BK: tl.constexpr,
     ):
         pid = tl.program_id(0)
         offs = pid * BLOCK + tl.arange(0, BLOCK)
@@ -135,65 +157,83 @@ if HAS_TRITON:
         zd = sp // (Wd * Hd)  # 0 everywhere when DIMS == 2 (Dd == 1)
         hr = tl.arange(0, HIDDEN)
 
+        # hidden = neighborhood @ W1eff (perception folded into the weights)
         acc = tl.zeros((BLOCK, HIDDEN), dtype=tl.float32)
-        for c in tl.static_range(CHANNELS):
-            base_c = (b * CHANNELS + c) * S
-            sid = tl.zeros((BLOCK,), dtype=tl.float32)
-            s1 = tl.zeros((BLOCK,), dtype=tl.float32)
-            s2 = tl.zeros((BLOCK,), dtype=tl.float32)
-            s3 = tl.zeros((BLOCK,), dtype=tl.float32)
-            for dz in tl.static_range(DLO, DHI):
-                for dy in tl.static_range(-1, 2):
-                    for dx in tl.static_range(-1, 2):
-                        xx = xw + dx
-                        yy = yh + dy
-                        inb = (xx >= 0) & (xx < Wd) & (yy >= 0) & (yy < Hd) & m
-                        if DIMS == 3:
-                            zz = zd + dz
-                            inb = inb & (zz >= 0) & (zz < Dd)
-                            plane = (zz * Hd + yy) * Wd + xx
-                        else:
-                            plane = yy * Wd + xx
-                        v = tl.load(x_ptr + base_c + plane, mask=inb, other=0.0)
-                        # compile-time tap coefficients: smooth(d) = 2 - d*d,
-                        # deriv(d) = d, / 8 (2D) or / 32 (3D). Zero terms and
-                        # the whole arithmetic fold away at trace time.
-                        if dz == 0 and dy == 0 and dx == 0:
-                            sid = v
-                        if DIMS == 2:
-                            c1 = dx * (2 - dy * dy) / 8.0
-                            c2 = dy * (2 - dx * dx) / 8.0
-                            c3 = 0.0
-                        else:
-                            c1 = dx * (2 - dy * dy) * (2 - dz * dz) / 32.0
-                            c2 = dy * (2 - dx * dx) * (2 - dz * dz) / 32.0
-                            c3 = dz * (2 - dx * dx) * (2 - dy * dy) / 32.0
-                        if c1 != 0.0:
-                            s1 += v * c1
-                        if c2 != 0.0:
-                            s2 += v * c2
-                        if c3 != 0.0:
-                            s3 += v * c3
-            if SAVE:
+        for k0 in range(0, KPAD, BK):
+            j = k0 + tl.arange(0, BK)
+            c = j // NB
+            n = j % NB
+            dx = n % 3 - 1
+            dy = (n // 3) % 3 - 1
+            xx = xw[:, None] + dx[None, :]
+            yy = yh[:, None] + dy[None, :]
+            inb = (
+                (xx >= 0) & (xx < Wd) & (yy >= 0) & (yy < Hd)
+                & (j[None, :] < K) & m[:, None]
+            )
+            if DIMS == 3:
+                dz = n // 9 - 1
+                zz = zd[:, None] + dz[None, :]
+                inb = inb & (zz >= 0) & (zz < Dd)
+                plane = (zz * Hd + yy) * Wd + xx
+            else:
+                plane = yy * Wd + xx
+            addr = (b[:, None] * CHANNELS + c[None, :]) * S + plane
+            a = tl.load(x_ptr + addr, mask=inb, other=0.0)
+            wblk = tl.load(w1eff_ptr + j[:, None] * HIDDEN + hr[None, :])
+            acc += tl.dot(a, wblk, input_precision="ieee")
+        acc += tl.load(b1_ptr + hr)[None, :]
+        if COND > 0:
+            for i in tl.static_range(COND):
+                cv = tl.load(cond_ptr + b * COND + i, mask=m, other=0.0)
+                wc = tl.load(w1cond_ptr + i * HIDDEN + hr)
+                acc += cv[:, None] * wc[None, :]
+
+        if SAVE:
+            # backward replay: also materialize percept (explicit tap sums —
+            # loads hit L2; no outer products, so no codegen blowup) and h_lin
+            tl.store(hlin_ptr + hr[None, :] * BS + offs[:, None], acc, mask=m[:, None])
+            for c in tl.static_range(CHANNELS):
+                base_c = (b * CHANNELS + c) * S
+                sid = tl.zeros((BLOCK,), dtype=tl.float32)
+                s1 = tl.zeros((BLOCK,), dtype=tl.float32)
+                s2 = tl.zeros((BLOCK,), dtype=tl.float32)
+                s3 = tl.zeros((BLOCK,), dtype=tl.float32)
+                for dz in tl.static_range(DLO, DHI):
+                    for dy in tl.static_range(-1, 2):
+                        for dx in tl.static_range(-1, 2):
+                            xx1 = xw + dx
+                            yy1 = yh + dy
+                            inb1 = (xx1 >= 0) & (xx1 < Wd) & (yy1 >= 0) & (yy1 < Hd) & m
+                            if DIMS == 3:
+                                zz1 = zd + dz
+                                inb1 = inb1 & (zz1 >= 0) & (zz1 < Dd)
+                                plane1 = (zz1 * Hd + yy1) * Wd + xx1
+                            else:
+                                plane1 = yy1 * Wd + xx1
+                            v = tl.load(x_ptr + base_c + plane1, mask=inb1, other=0.0)
+                            # compile-time taps: smooth(d) = 2 - d*d, deriv = d
+                            if dz == 0 and dy == 0 and dx == 0:
+                                sid = v
+                            if DIMS == 2:
+                                c1 = dx * (2 - dy * dy) / 8.0
+                                c2 = dy * (2 - dx * dx) / 8.0
+                                c3 = 0.0
+                            else:
+                                c1 = dx * (2 - dy * dy) * (2 - dz * dz) / 32.0
+                                c2 = dy * (2 - dx * dx) * (2 - dz * dz) / 32.0
+                                c3 = dz * (2 - dx * dx) * (2 - dy * dy) / 32.0
+                            if c1 != 0.0:
+                                s1 += v * c1
+                            if c2 != 0.0:
+                                s2 += v * c2
+                            if c3 != 0.0:
+                                s3 += v * c3
                 tl.store(percept_ptr + (c * NK + 0) * BS + offs, sid, mask=m)
                 tl.store(percept_ptr + (c * NK + 1) * BS + offs, s1, mask=m)
                 tl.store(percept_ptr + (c * NK + 2) * BS + offs, s2, mask=m)
                 if DIMS == 3:
                     tl.store(percept_ptr + (c * NK + 3) * BS + offs, s3, mask=m)
-            acc += sid[:, None] * tl.load(w1t_ptr + (c * NK + 0) * HIDDEN + hr)[None, :]
-            acc += s1[:, None] * tl.load(w1t_ptr + (c * NK + 1) * HIDDEN + hr)[None, :]
-            acc += s2[:, None] * tl.load(w1t_ptr + (c * NK + 2) * HIDDEN + hr)[None, :]
-            if DIMS == 3:
-                acc += s3[:, None] * tl.load(w1t_ptr + (c * NK + 3) * HIDDEN + hr)[None, :]
-
-        acc += tl.load(b1_ptr + hr)[None, :]
-        if COND > 0:
-            for i in tl.static_range(COND):
-                cv = tl.load(cond_ptr + b * COND + i, mask=m, other=0.0)
-                wc = tl.load(w1t_ptr + (CHANNELS * NK + i) * HIDDEN + hr)
-                acc += cv[:, None] * wc[None, :]
-        if SAVE:
-            tl.store(hlin_ptr + hr[None, :] * BS + offs[:, None], acc, mask=m[:, None])
         if FILM:
             ga = tl.load(gamma_ptr + b[:, None] * HIDDEN + hr[None, :], mask=m[:, None], other=0.0)
             be = tl.load(beta_ptr + b[:, None] * HIDDEN + hr[None, :], mask=m[:, None], other=0.0)
@@ -407,11 +447,12 @@ def _geometry(x, dims):
     return b, s, b * s, wd, hd, dd
 
 
-def _launch_step(x, w1t, b1, w2t, b2, cond, gamma, beta,
+def _launch_step(x, w1eff, b1, w1cond, w2t, b2, cond, gamma, beta,
                  seed_step, fire_rate, clamp, dims, cond_n, film,
                  save_bufs=None):
     b, s, n, wd, hd, dd = _geometry(x, dims)
     nk = 3 if dims == 2 else 4
+    nb = 9 if dims == 2 else 27
     hidden = w2t.shape[0]
     dlo, dhi = (-1, 2) if dims == 3 else (0, 1)
     x_mid = torch.empty_like(x)
@@ -423,17 +464,18 @@ def _launch_step(x, w1t, b1, w2t, b2, cond, gamma, beta,
     grid = (triton.cdiv(n, 64),)
     _nca_step_fwd[grid](
         x, x_mid,
-        w1t, b1, w2t, b2,
+        w1eff, b1, w1cond, w2t, b2,
         cond if cond_n else dummy,
         gamma if film else dummy,
         beta if film else dummy,
         percept_buf, hlin_buf,
         n, s, n, wd, hd, dd,
         seed_step, fire_rate, clamp if clamp is not None else 0.0,
-        DIMS=dims, NK=nk, DLO=dlo, DHI=dhi,
+        DIMS=dims, NB=nb, NK=nk, K=CH * nb, KPAD=w1eff.shape[0],
+        DLO=dlo, DHI=dhi,
         HIDDEN=hidden, COND=cond_n,
         FILM=film, CLAMP=clamp is not None, SAVE=save_bufs is not None,
-        BLOCK=64, num_warps=8,
+        BLOCK=64, BK=32, num_warps=8,
     )
     return x_mid
 
@@ -468,11 +510,11 @@ class FusedNCAStep(torch.autograd.Function):
     def forward(ctx, x, w1, b1, w2, b2, cond, gamma, beta,
                 seed_step, fire_rate, clamp, dims, cond_n, film):
         x = x.contiguous()
-        w1t, w2t = _weights_t(w1, w2)
+        w1eff, w1cond, w2t = _folded(w1, w2, dims, cond_n)
         cond_c = cond.contiguous() if cond_n else None
         gamma_c = gamma.contiguous() if film else None
         beta_c = beta.contiguous() if film else None
-        x_mid = _launch_step(x, w1t, b1, w2t, b2, cond_c, gamma_c, beta_c,
+        x_mid = _launch_step(x, w1eff, b1, w1cond, w2t, b2, cond_c, gamma_c, beta_c,
                              seed_step, fire_rate, clamp, dims, cond_n, film)
         x_out = _launch_life(x, x_mid, dims)
         ctx.save_for_backward(x, w1, b1, w2, b2,
@@ -495,13 +537,13 @@ class FusedNCAStep(torch.autograd.Function):
 
         with torch.no_grad():
             # --- replay forward once, materializing internals (flat layout) ---
-            w1t, w2t = _weights_t(w1, w2)
+            w1eff, w1cond, w2t = _folded(w1, w2, dims, cond_n)
             percept_f = torch.empty(pch, p_total, device=dev)
             h_lin_f = torch.empty(hidden, p_total, device=dev)
             # clamp=None: gates must see the RAW pre-clamp x_mid — the clamp
             # gate |x_mid*life| <= 8 is vacuous on already-clamped values
             # (gradient would leak at the boundary; eager blocks it there)
-            x_mid = _launch_step(x, w1t, b1, w2t, b2, cond, gamma, beta,
+            x_mid = _launch_step(x, w1eff, b1, w1cond, w2t, b2, cond, gamma, beta,
                                  seed_step, fire_rate, None, dims, cond_n, film,
                                  save_bufs=(percept_f, h_lin_f))
 
