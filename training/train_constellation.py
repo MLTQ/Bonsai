@@ -204,6 +204,18 @@ def main():
             for b in range(BATCH):
                 cur = int(near_cpu[b])
                 s = int(st_cpu[b])
+                # Dwell: if the sample is already sitting near a pose, sometimes
+                # supervise the WHOLE rollout toward that pose -- polish at the
+                # attractor. This is the crisp-keyframe lever: blur in transit
+                # reads as motion, blur at rest reads as a bad render, so rest
+                # is where the loss budget should go. Proximity gate keeps the
+                # v1 failure (unconditional dwell = parking) impossible: far
+                # samples always transit. NOTE: the waypoint refactor orphaned
+                # DWELL_P entirely; this restores it.
+                if (not switch_cpu[b]) and near_d[b] < 0.03 \
+                        and np.random.rand() < DWELL_P:
+                    chain[b, :] = cur
+                    continue
                 if switch_cpu[b]:
                     chain[b, 0] = cur              # metamorphosis: become the new form
                     start = 1

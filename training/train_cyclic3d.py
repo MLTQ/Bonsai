@@ -232,6 +232,9 @@ def main():
                     help="Triton fused step (CUDA only; see fused_step.py)")
     ap.add_argument("--no-ckpt", action="store_true",
                     help="disable gradient checkpointing (needs ~big VRAM; kills recompute)")
+    ap.add_argument("--growth-p", type=float, default=0.0,
+                    help="fraction of rollouts run at 4x length (seed growth; "
+                         "essential for cold-start 64^3 creatures)")
     ap.add_argument("--fixed-t", type=int, default=0,
                     help="fix rollout length (avoids recompiles under --compile)")
     args = ap.parse_args()
@@ -295,6 +298,12 @@ def main():
                 x[-DAMAGE_N:] = damage(x[-DAMAGE_N:])
 
         T = args.fixed_t if args.fixed_t else int(np.random.randint(48, 73))
+        # Growth curriculum: cold-start 64^3 creatures never learn to grow from
+        # seed on 48-72 step rollouts (the seed dies mid-rollout and the alive
+        # mask zeroes the gradient path, so it cannot self-correct). Occasional
+        # 4x rollouts give the seed sample a full uninterrupted growth arc.
+        if args.growth_p > 0 and not args.fixed_t and np.random.rand() < args.growth_p:
+            T *= 4
         x.requires_grad_(True)
         out = model.rollout(x, theta, beh, T, seed=it)
         loss = ((out[:, :4] - target_at(frames_t, beh, theta + T * OMEGA)) ** 2).mean()

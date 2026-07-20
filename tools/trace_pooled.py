@@ -52,7 +52,8 @@ def main():
     ap.add_argument("--plot", default=None, help="write a PNG of g over time")
     args = ap.parse_args()
 
-    device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else
+                          "mps" if torch.backends.mps.is_available() else "cpu")
     train_states.GRID = args.grid
     model, npool = load_ncap(args.checkpoint, device)
     print(f"{args.checkpoint}: npool {npool}, hidden {train_states.HIDDEN}, grid {args.grid}")

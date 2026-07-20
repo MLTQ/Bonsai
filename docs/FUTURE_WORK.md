@@ -289,12 +289,44 @@ should differentiate again, and/or a timing lead should appear. If eta^2 stays
 at 0.96 and nothing else moves, the flag was not what was holding g back and
 the hypothesis is wrong.
 
-Open questions the current arms should answer:
-- ~~Does g carry dynamics, or settle to a constant?~~ **Answered: slow variable;
-  at full training, an oscillator locked to the body's traversal.**
-- ~~Does g correspond to visible behaviour?~~ **Answered: yes, as a readout
-  (eta^2 0.96, no timing lead).**
-- Does `--flag-dropout` convert g from proprioception into memory?
+### CLOSED (2026-07-20): removed from the product
+
+Max called it: *"the blur is nearly identical across them, the pooling doesn't
+seem to have helped in any way."* Confirmed on every axis that matters to the
+product, so the pooled creatures are out of the app menu. Final ledger:
+
+**Arm H (flag dropout) falsified the driver hypothesis.** eta^2 stayed at
+0.92-0.95, no channel differentiation, no timing lead. And the experiment had a
+design flaw worth recording: the state flag is 0/1 and "withholding" masked it
+to 0 — which is indistinguishable from the state-0 signal. So dropout was a
+no-op for calm samples and mislabeling for rage ones. A clean rerun would encode
+state as +/-1 with 0 = absent. Not run: even a success would make g a memory,
+not a driver, and the product case was already dead.
+
+**What flag-dropout did buy: mood inertia.** Hysteresis test — settle each
+creature in rage, then cut the flag:
+
+| creature | state at +60 steps | +200 | +600 |
+|---|---|---|---|
+| H (dropout) | **RAGE** | calm | calm |
+| F (pooled) | calm | calm | calm |
+| wp3 (local) | calm | calm | calm |
+
+H lingers in rage for 60-200 steps (2-7 s at display rate) where the others snap
+back instantly. Real, measurable, and not worth the machinery: the LLM listener
+can produce the same lingering by easing the flag, for free.
+
+**What stays in the repo**: pooled_nca.py, the three analysis tools, and the
+NCAP runtime path (zero-cost when npool = 0; archived checkpoints still load).
+The scientific results stand — pooled trains to lower loss at equal width
+(0.74-0.88 ratio), g self-organizes into a body-locked oscillator, four
+channels collapse into one — they just do not serve this product.
+
+Open questions:
+- ~~Does g carry dynamics?~~ Slow variable; an oscillator at full training.
+- ~~Does g correspond to behaviour?~~ Readout only (eta^2 0.96, no lead).
+- ~~Does flag-dropout make g a driver?~~ **No — inertia only, and the flag
+  encoding made the test weaker than designed (see above).**
 - Does it fix 96^2 coherence, where strict locality demonstrably failed?
 - Does damage recovery survive, or does the global variable make wounds global?
 - If it works, it needs Metal + Triton support and an NCAP parser before it can

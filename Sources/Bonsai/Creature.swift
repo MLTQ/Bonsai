@@ -41,16 +41,11 @@ struct Creature {
         Creature(name: "Moss Spirit", fileName: "moss_spirit.nca", renderStyle: 0,
                  makeBehavior: { StateBehavior() },
                  flagStates: [("calm", "content"), ("rage", "agitated")]),
-        // H100 sweep arms, for side-by-side evaluation (2026-07-20)
-        Creature(name: "Pooled F · nervous system", fileName: "F_pooled.nca", renderStyle: 0,
-                 makeBehavior: { StateBehavior() },
-                 flagStates: [("calm", "content"), ("rage", "agitated")]),
-        Creature(name: "Pooled H · flag dropout", fileName: "H_pooled_drop.nca", renderStyle: 0,
-                 makeBehavior: { StateBehavior() },
-                 flagStates: [("calm", "content"), ("rage", "agitated")]),
-        Creature(name: "Pooled G · 96px", fileName: "G_pooled96.nca", renderStyle: 0,
-                 makeBehavior: { StateBehavior() }, grid2D: 96,
-                 flagStates: [("calm", "content"), ("rage", "agitated")]),
+        // H100 sweep arms, for side-by-side evaluation (2026-07-20).
+        // Pooled creatures were removed 2026-07-20: no visual benefit over
+        // local (same 70% sharpness ceiling), and the global variable turned
+        // out to be proprioceptive rather than a driver. The NCAP parser and
+        // pool kernel stay in the runtime so archived checkpoints still load.
         Creature(name: "Sweep A+ · 90k", fileName: "A_long.nca", renderStyle: 0,
                  makeBehavior: { StateBehavior() },
                  flagStates: [("calm", "content"), ("rage", "agitated")]),

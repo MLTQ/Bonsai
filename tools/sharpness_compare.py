@@ -100,7 +100,8 @@ def main():
     ap.add_argument("--trials", type=int, default=3)
     args = ap.parse_args()
 
-    device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else
+                          "mps" if torch.backends.mps.is_available() else "cpu")
     data = np.load(args.target, allow_pickle=True)
     poses = data["poses"].astype(np.float32)
     pose_state = data["pose_state"].astype(np.int64)
