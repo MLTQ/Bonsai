@@ -39,6 +39,22 @@ struct Creature {
         Creature(name: "Moss Spirit", fileName: "moss_spirit.nca", renderStyle: 0,
                  makeBehavior: { StateBehavior() },
                  flagStates: [("calm", "content"), ("rage", "agitated")]),
+        // H100 sweep arms, for side-by-side evaluation (2026-07-20)
+        Creature(name: "Sweep A · h256", fileName: "A_base.nca", renderStyle: 0,
+                 makeBehavior: { StateBehavior() },
+                 flagStates: [("calm", "content"), ("rage", "agitated")]),
+        Creature(name: "Sweep B · 96px", fileName: "B_res96.nca", renderStyle: 0,
+                 makeBehavior: { StateBehavior() }, grid2D: 96,
+                 flagStates: [("calm", "content"), ("rage", "agitated")]),
+        Creature(name: "Sweep C · dense wp", fileName: "C_dense.nca", renderStyle: 0,
+                 makeBehavior: { StateBehavior() },
+                 flagStates: [("calm", "content"), ("rage", "agitated")]),
+        Creature(name: "Sweep D · h128", fileName: "D_h128.nca", renderStyle: 0,
+                 makeBehavior: { StateBehavior() },
+                 flagStates: [("calm", "content"), ("rage", "agitated")]),
+        Creature(name: "Sweep E · procedural", fileName: "E_procedural.nca", renderStyle: 0,
+                 makeBehavior: { StateBehavior() },
+                 flagStates: [("calm", "content"), ("rage", "agitated")]),
     ]
 
     var path: String? {
