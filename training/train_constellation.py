@@ -40,6 +40,9 @@ def main():
     ap.add_argument("--pool", type=int, default=POOL_SIZE)
     ap.add_argument("--hidden", type=int, default=None,
                     help="update-rule width (Swift parses it from the header; 128 default)")
+    ap.add_argument("--fused", action="store_true",
+                    help="Triton fused step (CUDA only; see fused_step.py). "
+                         "Big win here is memory: enables much larger batches.")
     ap.add_argument("--motion-weight", type=float, default=0.0,
                     help="alpha: loss weight becomes 1 + alpha*normalized per-pixel "
                          "variance across a state's poses. Lets tiny motions train.")
@@ -163,10 +166,23 @@ def main():
         K = chain_t.shape[1]
         seg_scale = 4 if np.random.rand() < args.growth_p else 1   # occasional long haul
         loss = torch.zeros((), device=device)
+        if args.fused:
+            from fused_step import fused_nca_step
+            H, C, CN = train_states.HIDDEN, train_states.CH, train_states.COND
+            w1f = model.w1.weight.reshape(H, C * 3 + CN)
+            w2f = model.w2.weight.reshape(C, H)
+            cond_flag = st.float()[:, None]
+        gstep = 0
         for j in range(K):
             seg = int(np.random.randint(args.horizon[0], args.horizon[1] + 1)) * seg_scale
             for _ in range(seg):
-                x = model(x, st)
+                if args.fused:
+                    x = fused_nca_step(x, w1f, model.w1.bias, w2f, model.w2.bias,
+                                       cond=cond_flag, seed=it, step=gstep,
+                                       fire_rate=train_states.FIRE_RATE, clamp=8.0)
+                else:
+                    x = model(x, st)
+                gstep += 1
             w = 0.6 + 0.4 * (j + 1) / K            # later waypoints weigh a little more
             err = (x[:, :4] - poses_t[chain_t[:, j]]) ** 2
             loss = loss + w * (err * motion_w).mean()
