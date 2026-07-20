@@ -15,6 +15,10 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/Bonsai "$APP/Contents/MacOS/Bonsai"
 cp weights/*.nca "$APP/Contents/Resources/" 2>/dev/null || {
     echo "!! no weights in weights/ — train first"; exit 1; }
+# statemaps + anchors: the explorer's fallback path loads statemap_2d.json from
+# the same directory as the weights — omitting these silently breaks the
+# State Space panel for every creature without flagStates.
+cp weights/*.json "$APP/Contents/Resources/" 2>/dev/null || true
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

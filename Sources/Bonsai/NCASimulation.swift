@@ -46,6 +46,9 @@ final class NCASimulation {
     var renderStyle: Int32 = 0
     /// Mirror the render horizontally (creature facing). State is untouched.
     var flipX: Bool = false
+    /// Sharp silhouette at display time (bilinear alpha + smoothstep remap).
+    /// Display-only: verification tools read the raw state and are unaffected.
+    var crispEdges: Bool = true
 
     struct Uniforms {
         var width: Int32
@@ -62,6 +65,7 @@ final class NCASimulation {
         var cond3: Float
         var style: Int32
         var flipX: Int32
+        var crisp: Int32
     }
 
     init?(device: MTLDevice, weights: NCAWeights, gridWidth: Int = 64, gridHeight: Int = 64) {
@@ -179,7 +183,8 @@ final class NCASimulation {
                         damageActive: d == nil ? 0 : 1,
                         damageX: d?.x ?? 0, damageY: d?.y ?? 0, damageRadius: d?.radius ?? 0,
                         cond0: c.0, cond1: c.1, cond2: c.2, cond3: c.3,
-                        style: renderStyle, flipX: flipX ? 1 : 0)
+                        style: renderStyle, flipX: flipX ? 1 : 0,
+                        crisp: crispEdges ? 1 : 0)
     }
 
     private func dispatch(_ encoder: MTLComputeCommandEncoder, _ pipeline: MTLComputePipelineState,

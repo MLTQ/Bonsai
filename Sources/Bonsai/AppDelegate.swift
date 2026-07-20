@@ -69,6 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
             sim.renderStyle = creature.renderStyle
+            sim.crispEdges = UserDefaults.standard.object(forKey: "crispEdges") as? Bool ?? true
             let behavior = creature.makeBehavior()
             if let behavior {
                 sim.condProvider = { [weak behavior] step in
@@ -132,6 +133,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(creatureItem)
         menu.setSubmenu(creatureMenu, for: creatureItem)
         menu.addItem(withTitle: "State Space…", action: #selector(showStateMap), keyEquivalent: "m")
+        let crisp = NSMenuItem(title: "Crisp Silhouette", action: #selector(toggleCrisp), keyEquivalent: "e")
+        crisp.state = UserDefaults.standard.object(forKey: "crispEdges") as? Bool ?? true ? .on : .off
+        menu.addItem(crisp)
         menu.addItem(withTitle: "Regrow from Seed", action: #selector(reseed), keyEquivalent: "r")
         menu.addItem(withTitle: "Reload Weights", action: #selector(reloadWeights), keyEquivalent: "")
         menu.addItem(.separator())
@@ -157,6 +161,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func fileMTime(_ path: String) -> Date? {
         (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
+    }
+
+    @objc private func toggleCrisp() {
+        let now = !(UserDefaults.standard.object(forKey: "crispEdges") as? Bool ?? true)
+        UserDefaults.standard.set(now, forKey: "crispEdges")
+        sim?.crispEdges = now
+        rebuildStatusMenu()
     }
 
     @objc private func reseed() {

@@ -38,6 +38,7 @@ func ncaMetalSource(cond: Int, hidden: Int = 128, useFilm: Bool = false, npool: 
         float cond3;
         int   style;    // render: 0 = plain, 1 = CRT scanlines
         int   flipX;    // render: mirror horizontally (creature facing)
+        int   crisp;    // render: 1 = bilinear + alpha remap (sharp silhouette)
     };
 
     inline float cellCh(const device float *s, int x, int y, int c, int W, int H) {
@@ -174,18 +175,46 @@ func ncaMetalSource(cond: Int, hidden: Int = 128, useFilm: Bool = false, npool: 
         for (int c = 0; c < CH; c++) outBuf[base + c] = live ? post[base + c] : 0.0f;
     }
 
-    // Nearest-neighbor upscale of state RGBA into the drawable (premultiplied alpha).
+    inline float4 stateRGBA(const device float *state, int x, int y, int W, int H) {
+        x = clamp(x, 0, W - 1); y = clamp(y, 0, H - 1);
+        int base = (y * W + x) * CH;
+        float4 c = clamp(float4(state[base], state[base+1], state[base+2], state[base+3]), 0.0, 1.0);
+        c.rgb = min(c.rgb, c.a);  // premultiplied-alpha invariant
+        return c;
+    }
+
+    // Upscale of state RGBA into the drawable (premultiplied alpha).
+    // crisp mode is the SDF-font trick: bilinear-sample the soft alpha field at
+    // display resolution, then push it through a steep smoothstep. The 95% of
+    // measured softness that lives in the silhouette's alpha ramp collapses to
+    // a crisp antialiased edge; the creature's dynamics are untouched (display
+    // only — headless verification still reads the raw state).
     kernel void nca_render(const device float *state [[buffer(0)]],
                            constant Uniforms &u      [[buffer(1)]],
                            texture2d<float, access::write> tex [[texture(0)]],
                            uint2 gid [[thread_position_in_grid]]) {
         if (gid.x >= tex.get_width() || gid.y >= tex.get_height()) return;
-        int sx = int(gid.x * (uint)u.width  / tex.get_width());
-        int sy = int(gid.y * (uint)u.height / tex.get_height());
-        if (u.flipX != 0) sx = u.width - 1 - sx;
-        int base = (sy * u.width + sx) * CH;
-        float4 rgba = clamp(float4(state[base], state[base+1], state[base+2], state[base+3]), 0.0, 1.0);
-        rgba.rgb = min(rgba.rgb, rgba.a);  // premultiplied-alpha invariant
+        float4 rgba;
+        if (u.crisp != 0) {
+            float fx = (float(gid.x) + 0.5f) * float(u.width)  / float(tex.get_width())  - 0.5f;
+            float fy = (float(gid.y) + 0.5f) * float(u.height) / float(tex.get_height()) - 0.5f;
+            if (u.flipX != 0) fx = float(u.width - 1) - fx;
+            int x0 = int(floor(fx)), y0 = int(floor(fy));
+            float tx = fx - floor(fx), ty = fy - floor(fy);
+            float4 c = mix(mix(stateRGBA(state, x0,     y0, u.width, u.height),
+                               stateRGBA(state, x0 + 1, y0, u.width, u.height), tx),
+                           mix(stateRGBA(state, x0,     y0 + 1, u.width, u.height),
+                               stateRGBA(state, x0 + 1, y0 + 1, u.width, u.height), tx), ty);
+            // Narrow the alpha ramp; re-premultiply so colour tracks the new edge.
+            float a2 = smoothstep(0.08f, 0.60f, c.a);
+            rgba = float4(c.rgb * (a2 / max(c.a, 1e-4f)), a2);
+            rgba.rgb = min(rgba.rgb, rgba.a);
+        } else {
+            int sx = int(gid.x * (uint)u.width  / tex.get_width());
+            int sy = int(gid.y * (uint)u.height / tex.get_height());
+            if (u.flipX != 0) sx = u.width - 1 - sx;
+            rgba = stateRGBA(state, sx, sy, u.width, u.height);
+        }
         if (u.style == 1 && (gid.y % 3u) == 0u) rgba *= 0.86;  // faint CRT scanlines
         tex.write(rgba, gid);
     }

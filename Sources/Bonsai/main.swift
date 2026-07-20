@@ -10,6 +10,13 @@ if args.count >= 2, args[1] == "--render-test" {
     let weights = args.count >= 5 ? args[4] : nil
     exit(RenderTest.run(outputPath: out, steps: steps, weightsPath: weights))
 }
+if args.count >= 2, args[1] == "--render-tex" {
+    let out = args.count >= 3 ? args[2] : "render_tex.png"
+    let steps = args.count >= 4 ? Int(args[3]) ?? 300 : 300
+    let weights = args.count >= 5 ? args[4] : nil
+    let crisp = args.count >= 6 ? args[5] == "1" : true
+    exit(RenderTest.runTexture(outputPath: out, steps: steps, weightsPath: weights, crisp: crisp))
+}
 if args.count >= 4, args[1] == "--render-vol" {
     let azimuth = args.count >= 5 ? Float(args[4]) ?? 25 : 25
     exit(RenderTest.renderVolume(volumePath: args[2], outputPath: args[3],

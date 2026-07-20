@@ -59,6 +59,32 @@ enum RenderTest {
         return sim
     }
 
+    /// Render through the PRODUCTION display kernel (nca_render) into an offscreen
+    /// texture — the path the app actually draws with. `--render-test` reads raw
+    /// state and bypasses that kernel entirely, which left display-side features
+    /// (crisp silhouette) unverifiable headlessly. `--render-tex out.png steps
+    /// weights crisp01` closes the gap.
+    static func runTexture(outputPath: String, steps: Int, weightsPath: String?,
+                           crisp: Bool) -> Int32 {
+        guard let sim = makeSim(weightsPath: weightsPath) else { return 1 }
+        sim.crispEdges = crisp
+        sim.step(count: steps)
+        let size = 512
+        let desc = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba8Unorm, width: size, height: size, mipmapped: false)
+        desc.usage = [.shaderWrite, .shaderRead]
+        guard let texture = sim.device.makeTexture(descriptor: desc) else { return 1 }
+        sim.step(count: 1, renderInto: texture)
+        Thread.sleep(forTimeInterval: 0.3)  // command buffer with texture isn't waited on
+        var bytes = [UInt8](repeating: 0, count: size * size * 4)
+        texture.getBytes(&bytes, bytesPerRow: size * 4,
+                         from: MTLRegionMake2D(0, 0, size, size), mipmapLevel: 0)
+        guard writeRGBA8PNG(bytes: bytes, width: size, height: size, to: outputPath)
+        else { return 1 }
+        print("wrote \(outputPath) via nca_render (crisp=\(crisp))")
+        return 0
+    }
+
     static func run(outputPath: String, steps: Int, weightsPath: String? = nil) -> Int32 {
         guard let sim = makeSim(weightsPath: weightsPath) else { return 1 }
         sim.step(count: steps)
