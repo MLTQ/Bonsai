@@ -12,6 +12,7 @@ Usage: python3 train_cyclic3d.py [--iters 24000] [--out ../weights/shoggoth3d.nc
 """
 
 import argparse
+import os
 import time
 
 import numpy as np
@@ -244,8 +245,19 @@ def main():
     torch.manual_seed(0)
     np.random.seed(0)
 
-    print("generating frames...", flush=True)
-    frames_t = torch.from_numpy(make_frames3d()).permute(0, 1, 5, 2, 3, 4).float().to(device)
+    # Rasterising the corpus at 64^3 costs tens of minutes, and it is a pure
+    # function of (creature, grid) — so cache it rather than paying on every
+    # launch, restart, or hyperparameter tweak.
+    cache = f"corpus_{args.creature}_{GRID3}.npz"
+    if os.path.exists(cache):
+        frames = np.load(cache)["frames"]
+        print(f"corpus <- {cache} {frames.shape}", flush=True)
+    else:
+        print(f"generating frames (will cache to {cache})...", flush=True)
+        frames = make_frames3d()
+        np.savez_compressed(cache, frames=frames)
+        print(f"corpus -> {cache} {frames.shape}", flush=True)
+    frames_t = torch.from_numpy(frames).permute(0, 1, 5, 2, 3, 4).float().to(device)
     model = CyclicNCA3D().to(device)
     if args.init:
         load_nc3c(model, args.init)
