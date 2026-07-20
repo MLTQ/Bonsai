@@ -1,0 +1,550 @@
+13 poses across 2 states, transits [np.str_('walk'), np.str_('walk')], device cuda, batch 16, pool 2048
+motion mask: 23% of pixels move
+iter    50  loss 0.07031  6.27 it/s
+iter   100  loss 0.06908  6.51 it/s
+iter   150  loss 0.05663  6.55 it/s
+iter   200  loss 0.04667  6.57 it/s
+iter   250  loss 0.05598  6.59 it/s
+  checkpoint -> A_base.nca
+iter   300  loss 0.04868  6.62 it/s
+iter   350  loss 0.04545  6.64 it/s
+iter   400  loss 0.04719  6.66 it/s
+iter   450  loss 0.04100  6.65 it/s
+iter   500  loss 0.04843  6.65 it/s
+  checkpoint -> A_base.nca
+iter   550  loss 0.04648  6.66 it/s
+iter   600  loss 0.04689  6.66 it/s
+iter   650  loss 0.04038  6.67 it/s
+iter   700  loss 0.04187  6.68 it/s
+iter   750  loss 0.04608  6.68 it/s
+  checkpoint -> A_base.nca
+iter   800  loss 0.04558  6.68 it/s
+iter   850  loss 0.03814  6.68 it/s
+iter   900  loss 0.04115  6.69 it/s
+iter   950  loss 0.04708  6.69 it/s
+iter  1000  loss 0.03807  6.69 it/s
+  checkpoint -> A_base.nca
+iter  1050  loss 0.03824  6.70 it/s
+iter  1100  loss 0.03537  6.69 it/s
+iter  1150  loss 0.03944  6.69 it/s
+iter  1200  loss 0.03761  6.69 it/s
+iter  1250  loss 0.03910  6.69 it/s
+  checkpoint -> A_base.nca
+iter  1300  loss 0.03945  6.69 it/s
+iter  1350  loss 0.04126  6.70 it/s
+iter  1400  loss 0.04055  6.69 it/s
+iter  1450  loss 0.03328  6.69 it/s
+iter  1500  loss 0.03610  6.69 it/s
+  checkpoint -> A_base.nca
+iter  1550  loss 0.03345  6.69 it/s
+iter  1600  loss 0.04511  6.70 it/s
+iter  1650  loss 0.03323  6.70 it/s
+iter  1700  loss 0.02991  6.70 it/s
+iter  1750  loss 0.04009  6.70 it/s
+  checkpoint -> A_base.nca
+iter  1800  loss 0.03761  6.70 it/s
+iter  1850  loss 0.03304  6.69 it/s
+iter  1900  loss 0.03839  6.69 it/s
+iter  1950  loss 0.04088  6.69 it/s
+iter  2000  loss 0.03534  6.69 it/s
+  checkpoint -> A_base.nca
+iter  2050  loss 0.03470  6.69 it/s
+iter  2100  loss 0.03703  6.69 it/s
+iter  2150  loss 0.03363  6.69 it/s
+iter  2200  loss 0.03327  6.69 it/s
+iter  2250  loss 0.04348  6.69 it/s
+  checkpoint -> A_base.nca
+iter  2300  loss 0.03105  6.69 it/s
+iter  2350  loss 0.03796  6.69 it/s
+iter  2400  loss 0.04115  6.69 it/s
+iter  2450  loss 0.03374  6.69 it/s
+iter  2500  loss 0.03304  6.69 it/s
+  checkpoint -> A_base.nca
+iter  2550  loss 0.02966  6.69 it/s
+iter  2600  loss 0.03651  6.69 it/s
+iter  2650  loss 0.03572  6.69 it/s
+iter  2700  loss 0.03294  6.69 it/s
+iter  2750  loss 0.03458  6.69 it/s
+  checkpoint -> A_base.nca
+iter  2800  loss 0.03914  6.69 it/s
+iter  2850  loss 0.03440  6.69 it/s
+iter  2900  loss 0.02937  6.69 it/s
+iter  2950  loss 0.03400  6.70 it/s
+iter  3000  loss 0.03470  6.70 it/s
+  checkpoint -> A_base.nca
+iter  3050  loss 0.03472  6.70 it/s
+iter  3100  loss 0.03144  6.70 it/s
+iter  3150  loss 0.03605  6.70 it/s
+iter  3200  loss 0.02806  6.69 it/s
+iter  3250  loss 0.03273  6.69 it/s
+  checkpoint -> A_base.nca
+iter  3300  loss 0.03046  6.69 it/s
+iter  3350  loss 0.02432  6.69 it/s
+iter  3400  loss 0.02670  6.70 it/s
+iter  3450  loss 0.03848  6.69 it/s
+iter  3500  loss 0.03187  6.70 it/s
+  checkpoint -> A_base.nca
+iter  3550  loss 0.02672  6.70 it/s
+iter  3600  loss 0.02928  6.70 it/s
+iter  3650  loss 0.03391  6.70 it/s
+iter  3700  loss 0.03222  6.70 it/s
+iter  3750  loss 0.02821  6.69 it/s
+  checkpoint -> A_base.nca
+iter  3800  loss 0.02796  6.69 it/s
+iter  3850  loss 0.03668  6.69 it/s
+iter  3900  loss 0.03145  6.69 it/s
+iter  3950  loss 0.03047  6.69 it/s
+iter  4000  loss 0.02345  6.69 it/s
+  checkpoint -> A_base.nca
+iter  4050  loss 0.02394  6.69 it/s
+iter  4100  loss 0.03511  6.69 it/s
+iter  4150  loss 0.02519  6.69 it/s
+iter  4200  loss 0.03277  6.69 it/s
+iter  4250  loss 0.03019  6.69 it/s
+  checkpoint -> A_base.nca
+iter  4300  loss 0.03726  6.69 it/s
+iter  4350  loss 0.03250  6.69 it/s
+iter  4400  loss 0.02868  6.69 it/s
+iter  4450  loss 0.02838  6.70 it/s
+iter  4500  loss 0.02752  6.70 it/s
+  checkpoint -> A_base.nca
+iter  4550  loss 0.03424  6.70 it/s
+iter  4600  loss 0.03023  6.69 it/s
+iter  4650  loss 0.03364  6.69 it/s
+iter  4700  loss 0.03470  6.69 it/s
+iter  4750  loss 0.03299  6.69 it/s
+  checkpoint -> A_base.nca
+iter  4800  loss 0.03541  6.69 it/s
+iter  4850  loss 0.02789  6.69 it/s
+iter  4900  loss 0.02526  6.69 it/s
+iter  4950  loss 0.03102  6.70 it/s
+iter  5000  loss 0.02898  6.70 it/s
+  checkpoint -> A_base.nca
+iter  5050  loss 0.02993  6.70 it/s
+iter  5100  loss 0.02649  6.70 it/s
+iter  5150  loss 0.03228  6.70 it/s
+iter  5200  loss 0.03068  6.70 it/s
+iter  5250  loss 0.02601  6.70 it/s
+  checkpoint -> A_base.nca
+iter  5300  loss 0.02625  6.70 it/s
+iter  5350  loss 0.02947  6.70 it/s
+iter  5400  loss 0.02271  6.70 it/s
+iter  5450  loss 0.02532  6.70 it/s
+iter  5500  loss 0.02809  6.70 it/s
+  checkpoint -> A_base.nca
+iter  5550  loss 0.02657  6.70 it/s
+iter  5600  loss 0.03357  6.70 it/s
+iter  5650  loss 0.02668  6.70 it/s
+iter  5700  loss 0.02734  6.70 it/s
+iter  5750  loss 0.02665  6.70 it/s
+  checkpoint -> A_base.nca
+iter  5800  loss 0.02901  6.70 it/s
+iter  5850  loss 0.02307  6.70 it/s
+iter  5900  loss 0.02394  6.70 it/s
+iter  5950  loss 0.02871  6.70 it/s
+iter  6000  loss 0.03358  6.70 it/s
+  checkpoint -> A_base.nca
+iter  6050  loss 0.02679  6.70 it/s
+iter  6100  loss 0.02950  6.70 it/s
+iter  6150  loss 0.03064  6.70 it/s
+iter  6200  loss 0.02295  6.70 it/s
+iter  6250  loss 0.02954  6.70 it/s
+  checkpoint -> A_base.nca
+iter  6300  loss 0.03154  6.70 it/s
+iter  6350  loss 0.02538  6.70 it/s
+iter  6400  loss 0.02414  6.70 it/s
+iter  6450  loss 0.03150  6.70 it/s
+iter  6500  loss 0.03019  6.70 it/s
+  checkpoint -> A_base.nca
+iter  6550  loss 0.02695  6.70 it/s
+iter  6600  loss 0.02464  6.70 it/s
+iter  6650  loss 0.03236  6.70 it/s
+iter  6700  loss 0.02948  6.70 it/s
+iter  6750  loss 0.02149  6.70 it/s
+  checkpoint -> A_base.nca
+iter  6800  loss 0.02010  6.70 it/s
+iter  6850  loss 0.03702  6.70 it/s
+iter  6900  loss 0.02579  6.70 it/s
+iter  6950  loss 0.02969  6.70 it/s
+iter  7000  loss 0.02493  6.70 it/s
+  checkpoint -> A_base.nca
+iter  7050  loss 0.03253  6.70 it/s
+iter  7100  loss 0.02647  6.70 it/s
+iter  7150  loss 0.02535  6.70 it/s
+iter  7200  loss 0.02303  6.70 it/s
+iter  7250  loss 0.03038  6.70 it/s
+  checkpoint -> A_base.nca
+iter  7300  loss 0.03095  6.70 it/s
+iter  7350  loss 0.02807  6.70 it/s
+iter  7400  loss 0.02640  6.70 it/s
+iter  7450  loss 0.02975  6.70 it/s
+iter  7500  loss 0.02810  6.70 it/s
+  checkpoint -> A_base.nca
+iter  7550  loss 0.03139  6.70 it/s
+iter  7600  loss 0.02570  6.70 it/s
+iter  7650  loss 0.02766  6.70 it/s
+iter  7700  loss 0.02798  6.70 it/s
+iter  7750  loss 0.02459  6.70 it/s
+  checkpoint -> A_base.nca
+iter  7800  loss 0.03357  6.70 it/s
+iter  7850  loss 0.02447  6.70 it/s
+iter  7900  loss 0.02818  6.70 it/s
+iter  7950  loss 0.02514  6.70 it/s
+iter  8000  loss 0.02385  6.70 it/s
+  checkpoint -> A_base.nca
+iter  8050  loss 0.02531  6.70 it/s
+iter  8100  loss 0.02297  6.70 it/s
+iter  8150  loss 0.02700  6.70 it/s
+iter  8200  loss 0.02973  6.70 it/s
+iter  8250  loss 0.03559  6.70 it/s
+  checkpoint -> A_base.nca
+iter  8300  loss 0.03076  6.70 it/s
+iter  8350  loss 0.03072  6.70 it/s
+iter  8400  loss 0.02919  6.70 it/s
+iter  8450  loss 0.02704  6.70 it/s
+iter  8500  loss 0.02642  6.70 it/s
+  checkpoint -> A_base.nca
+iter  8550  loss 0.02387  6.70 it/s
+iter  8600  loss 0.02544  6.70 it/s
+iter  8650  loss 0.03220  6.70 it/s
+iter  8700  loss 0.02945  6.70 it/s
+iter  8750  loss 0.02249  6.70 it/s
+  checkpoint -> A_base.nca
+iter  8800  loss 0.02448  6.70 it/s
+iter  8850  loss 0.02160  6.70 it/s
+iter  8900  loss 0.02726  6.70 it/s
+iter  8950  loss 0.02942  6.70 it/s
+iter  9000  loss 0.02982  6.70 it/s
+  checkpoint -> A_base.nca
+iter  9050  loss 0.02613  6.70 it/s
+iter  9100  loss 0.03011  6.70 it/s
+iter  9150  loss 0.02910  6.70 it/s
+iter  9200  loss 0.03131  6.70 it/s
+iter  9250  loss 0.02411  6.70 it/s
+  checkpoint -> A_base.nca
+iter  9300  loss 0.03170  6.70 it/s
+iter  9350  loss 0.02445  6.70 it/s
+iter  9400  loss 0.02556  6.70 it/s
+iter  9450  loss 0.02884  6.70 it/s
+iter  9500  loss 0.02402  6.70 it/s
+  checkpoint -> A_base.nca
+iter  9550  loss 0.02798  6.70 it/s
+iter  9600  loss 0.02555  6.70 it/s
+iter  9650  loss 0.02762  6.70 it/s
+iter  9700  loss 0.02126  6.70 it/s
+iter  9750  loss 0.02240  6.70 it/s
+  checkpoint -> A_base.nca
+iter  9800  loss 0.02361  6.70 it/s
+iter  9850  loss 0.02805  6.70 it/s
+iter  9900  loss 0.02649  6.70 it/s
+iter  9950  loss 0.02746  6.70 it/s
+iter 10000  loss 0.02842  6.70 it/s
+  checkpoint -> A_base.nca
+iter 10050  loss 0.02854  6.70 it/s
+iter 10100  loss 0.02192  6.70 it/s
+iter 10150  loss 0.02546  6.70 it/s
+iter 10200  loss 0.02787  6.70 it/s
+iter 10250  loss 0.02447  6.70 it/s
+  checkpoint -> A_base.nca
+iter 10300  loss 0.02396  6.70 it/s
+iter 10350  loss 0.02538  6.70 it/s
+iter 10400  loss 0.02847  6.70 it/s
+iter 10450  loss 0.02258  6.70 it/s
+iter 10500  loss 0.01953  6.70 it/s
+  checkpoint -> A_base.nca
+iter 10550  loss 0.02315  6.70 it/s
+iter 10600  loss 0.02114  6.70 it/s
+iter 10650  loss 0.02756  6.70 it/s
+iter 10700  loss 0.02216  6.70 it/s
+iter 10750  loss 0.02273  6.70 it/s
+  checkpoint -> A_base.nca
+iter 10800  loss 0.02355  6.70 it/s
+iter 10850  loss 0.02139  6.70 it/s
+iter 10900  loss 0.02866  6.70 it/s
+iter 10950  loss 0.01852  6.70 it/s
+iter 11000  loss 0.02988  6.70 it/s
+  checkpoint -> A_base.nca
+iter 11050  loss 0.02345  6.70 it/s
+iter 11100  loss 0.02650  6.70 it/s
+iter 11150  loss 0.02253  6.70 it/s
+iter 11200  loss 0.02459  6.70 it/s
+iter 11250  loss 0.02432  6.70 it/s
+  checkpoint -> A_base.nca
+iter 11300  loss 0.02156  6.70 it/s
+iter 11350  loss 0.02155  6.70 it/s
+iter 11400  loss 0.02157  6.70 it/s
+iter 11450  loss 0.02572  6.70 it/s
+iter 11500  loss 0.02363  6.70 it/s
+  checkpoint -> A_base.nca
+iter 11550  loss 0.02144  6.70 it/s
+iter 11600  loss 0.02054  6.70 it/s
+iter 11650  loss 0.02035  6.70 it/s
+iter 11700  loss 0.02540  6.70 it/s
+iter 11750  loss 0.02512  6.70 it/s
+  checkpoint -> A_base.nca
+iter 11800  loss 0.02110  6.70 it/s
+iter 11850  loss 0.01926  6.70 it/s
+iter 11900  loss 0.02093  6.70 it/s
+iter 11950  loss 0.02860  6.70 it/s
+iter 12000  loss 0.02766  6.70 it/s
+  checkpoint -> A_base.nca
+iter 12050  loss 0.02287  6.70 it/s
+iter 12100  loss 0.02501  6.70 it/s
+iter 12150  loss 0.02422  6.70 it/s
+iter 12200  loss 0.02663  6.70 it/s
+iter 12250  loss 0.02003  6.70 it/s
+  checkpoint -> A_base.nca
+iter 12300  loss 0.02665  6.70 it/s
+iter 12350  loss 0.02074  6.70 it/s
+iter 12400  loss 0.02615  6.70 it/s
+iter 12450  loss 0.02167  6.70 it/s
+iter 12500  loss 0.02537  6.70 it/s
+  checkpoint -> A_base.nca
+iter 12550  loss 0.01983  6.70 it/s
+iter 12600  loss 0.02508  6.70 it/s
+iter 12650  loss 0.01997  6.70 it/s
+iter 12700  loss 0.02149  6.70 it/s
+iter 12750  loss 0.02179  6.70 it/s
+  checkpoint -> A_base.nca
+iter 12800  loss 0.02396  6.70 it/s
+iter 12850  loss 0.02256  6.70 it/s
+iter 12900  loss 0.02366  6.70 it/s
+iter 12950  loss 0.02675  6.70 it/s
+iter 13000  loss 0.02648  6.70 it/s
+  checkpoint -> A_base.nca
+iter 13050  loss 0.02928  6.70 it/s
+iter 13100  loss 0.02041  6.70 it/s
+iter 13150  loss 0.02751  6.70 it/s
+iter 13200  loss 0.02147  6.70 it/s
+iter 13250  loss 0.02588  6.70 it/s
+  checkpoint -> A_base.nca
+iter 13300  loss 0.02472  6.70 it/s
+iter 13350  loss 0.02852  6.70 it/s
+iter 13400  loss 0.01920  6.70 it/s
+iter 13450  loss 0.02888  6.70 it/s
+iter 13500  loss 0.02253  6.70 it/s
+  checkpoint -> A_base.nca
+iter 13550  loss 0.01961  6.70 it/s
+iter 13600  loss 0.02326  6.70 it/s
+iter 13650  loss 0.02395  6.70 it/s
+iter 13700  loss 0.02410  6.70 it/s
+iter 13750  loss 0.02408  6.70 it/s
+  checkpoint -> A_base.nca
+iter 13800  loss 0.02646  6.70 it/s
+iter 13850  loss 0.02285  6.70 it/s
+iter 13900  loss 0.02229  6.70 it/s
+iter 13950  loss 0.02428  6.70 it/s
+iter 14000  loss 0.02290  6.70 it/s
+  checkpoint -> A_base.nca
+iter 14050  loss 0.02218  6.70 it/s
+iter 14100  loss 0.02328  6.70 it/s
+iter 14150  loss 0.02192  6.70 it/s
+iter 14200  loss 0.01839  6.70 it/s
+iter 14250  loss 0.02249  6.70 it/s
+  checkpoint -> A_base.nca
+iter 14300  loss 0.02184  6.70 it/s
+iter 14350  loss 0.02234  6.70 it/s
+iter 14400  loss 0.02317  6.70 it/s
+iter 14450  loss 0.02343  6.70 it/s
+iter 14500  loss 0.02967  6.70 it/s
+  checkpoint -> A_base.nca
+iter 14550  loss 0.02199  6.70 it/s
+iter 14600  loss 0.02199  6.70 it/s
+iter 14650  loss 0.02415  6.70 it/s
+iter 14700  loss 0.02437  6.70 it/s
+iter 14750  loss 0.02448  6.70 it/s
+  checkpoint -> A_base.nca
+iter 14800  loss 0.02883  6.70 it/s
+iter 14850  loss 0.02541  6.70 it/s
+iter 14900  loss 0.02062  6.70 it/s
+iter 14950  loss 0.01842  6.70 it/s
+iter 15000  loss 0.01943  6.70 it/s
+  checkpoint -> A_base.nca
+iter 15050  loss 0.02019  6.70 it/s
+iter 15100  loss 0.02027  6.70 it/s
+iter 15150  loss 0.02195  6.70 it/s
+iter 15200  loss 0.02239  6.70 it/s
+iter 15250  loss 0.02440  6.70 it/s
+  checkpoint -> A_base.nca
+iter 15300  loss 0.01785  6.70 it/s
+iter 15350  loss 0.02265  6.70 it/s
+iter 15400  loss 0.02318  6.70 it/s
+iter 15450  loss 0.02811  6.70 it/s
+iter 15500  loss 0.02299  6.70 it/s
+  checkpoint -> A_base.nca
+iter 15550  loss 0.02202  6.70 it/s
+iter 15600  loss 0.03263  6.70 it/s
+iter 15650  loss 0.02681  6.70 it/s
+iter 15700  loss 0.02775  6.70 it/s
+iter 15750  loss 0.02541  6.70 it/s
+  checkpoint -> A_base.nca
+iter 15800  loss 0.02139  6.70 it/s
+iter 15850  loss 0.01774  6.70 it/s
+iter 15900  loss 0.02249  6.70 it/s
+iter 15950  loss 0.02633  6.70 it/s
+iter 16000  loss 0.02216  6.70 it/s
+  checkpoint -> A_base.nca
+iter 16050  loss 0.02500  6.70 it/s
+iter 16100  loss 0.02239  6.70 it/s
+iter 16150  loss 0.01643  6.70 it/s
+iter 16200  loss 0.02292  6.70 it/s
+iter 16250  loss 0.02743  6.70 it/s
+  checkpoint -> A_base.nca
+iter 16300  loss 0.01760  6.70 it/s
+iter 16350  loss 0.01522  6.70 it/s
+iter 16400  loss 0.02147  6.70 it/s
+iter 16450  loss 0.02392  6.70 it/s
+iter 16500  loss 0.02501  6.70 it/s
+  checkpoint -> A_base.nca
+iter 16550  loss 0.01693  6.70 it/s
+iter 16600  loss 0.02088  6.70 it/s
+iter 16650  loss 0.02218  6.70 it/s
+iter 16700  loss 0.01988  6.70 it/s
+iter 16750  loss 0.02448  6.70 it/s
+  checkpoint -> A_base.nca
+iter 16800  loss 0.02756  6.70 it/s
+iter 16850  loss 0.02553  6.70 it/s
+iter 16900  loss 0.02596  6.70 it/s
+iter 16950  loss 0.02657  6.70 it/s
+iter 17000  loss 0.01951  6.70 it/s
+  checkpoint -> A_base.nca
+iter 17050  loss 0.02314  6.70 it/s
+iter 17100  loss 0.02485  6.70 it/s
+iter 17150  loss 0.01799  6.70 it/s
+iter 17200  loss 0.03142  6.70 it/s
+iter 17250  loss 0.02286  6.70 it/s
+  checkpoint -> A_base.nca
+iter 17300  loss 0.02404  6.70 it/s
+iter 17350  loss 0.02135  6.70 it/s
+iter 17400  loss 0.01933  6.70 it/s
+iter 17450  loss 0.01582  6.70 it/s
+iter 17500  loss 0.02140  6.70 it/s
+  checkpoint -> A_base.nca
+iter 17550  loss 0.01749  6.70 it/s
+iter 17600  loss 0.02495  6.70 it/s
+iter 17650  loss 0.02685  6.70 it/s
+iter 17700  loss 0.02449  6.70 it/s
+iter 17750  loss 0.02108  6.70 it/s
+  checkpoint -> A_base.nca
+iter 17800  loss 0.02057  6.70 it/s
+iter 17850  loss 0.01728  6.70 it/s
+iter 17900  loss 0.02738  6.70 it/s
+iter 17950  loss 0.02180  6.70 it/s
+iter 18000  loss 0.02212  6.70 it/s
+  checkpoint -> A_base.nca
+iter 18050  loss 0.02345  6.70 it/s
+iter 18100  loss 0.02862  6.70 it/s
+iter 18150  loss 0.02411  6.70 it/s
+iter 18200  loss 0.02112  6.70 it/s
+iter 18250  loss 0.02309  6.70 it/s
+  checkpoint -> A_base.nca
+iter 18300  loss 0.02566  6.70 it/s
+iter 18350  loss 0.01861  6.70 it/s
+iter 18400  loss 0.02526  6.70 it/s
+iter 18450  loss 0.01843  6.70 it/s
+iter 18500  loss 0.02075  6.70 it/s
+  checkpoint -> A_base.nca
+iter 18550  loss 0.02237  6.70 it/s
+iter 18600  loss 0.02676  6.70 it/s
+iter 18650  loss 0.02182  6.70 it/s
+iter 18700  loss 0.01891  6.70 it/s
+iter 18750  loss 0.01764  6.70 it/s
+  checkpoint -> A_base.nca
+iter 18800  loss 0.02109  6.69 it/s
+iter 18850  loss 0.02423  6.69 it/s
+iter 18900  loss 0.01969  6.69 it/s
+iter 18950  loss 0.02523  6.69 it/s
+iter 19000  loss 0.02095  6.68 it/s
+  checkpoint -> A_base.nca
+iter 19050  loss 0.01961  6.68 it/s
+iter 19100  loss 0.02146  6.68 it/s
+iter 19150  loss 0.02130  6.67 it/s
+iter 19200  loss 0.01860  6.67 it/s
+iter 19250  loss 0.02322  6.67 it/s
+  checkpoint -> A_base.nca
+iter 19300  loss 0.02289  6.66 it/s
+iter 19350  loss 0.02085  6.66 it/s
+iter 19400  loss 0.02148  6.66 it/s
+iter 19450  loss 0.02216  6.65 it/s
+iter 19500  loss 0.02377  6.65 it/s
+  checkpoint -> A_base.nca
+iter 19550  loss 0.01838  6.65 it/s
+iter 19600  loss 0.02776  6.65 it/s
+iter 19650  loss 0.02657  6.64 it/s
+iter 19700  loss 0.02546  6.64 it/s
+iter 19750  loss 0.02925  6.64 it/s
+  checkpoint -> A_base.nca
+iter 19800  loss 0.02185  6.64 it/s
+iter 19850  loss 0.02019  6.63 it/s
+iter 19900  loss 0.02623  6.63 it/s
+iter 19950  loss 0.02729  6.63 it/s
+iter 20000  loss 0.02255  6.62 it/s
+  checkpoint -> A_base.nca
+iter 20050  loss 0.02179  6.62 it/s
+iter 20100  loss 0.02399  6.62 it/s
+iter 20150  loss 0.03456  6.62 it/s
+iter 20200  loss 0.01946  6.61 it/s
+iter 20250  loss 0.02154  6.61 it/s
+  checkpoint -> A_base.nca
+iter 20300  loss 0.01858  6.61 it/s
+iter 20350  loss 0.01830  6.61 it/s
+iter 20400  loss 0.01631  6.60 it/s
+iter 20450  loss 0.01976  6.60 it/s
+iter 20500  loss 0.02154  6.60 it/s
+  checkpoint -> A_base.nca
+iter 20550  loss 0.01902  6.60 it/s
+iter 20600  loss 0.01674  6.59 it/s
+iter 20650  loss 0.02263  6.59 it/s
+iter 20700  loss 0.01444  6.59 it/s
+iter 20750  loss 0.01693  6.59 it/s
+  checkpoint -> A_base.nca
+iter 20800  loss 0.01691  6.58 it/s
+iter 20850  loss 0.01992  6.58 it/s
+iter 20900  loss 0.02013  6.58 it/s
+iter 20950  loss 0.01715  6.58 it/s
+iter 21000  loss 0.01623  6.57 it/s
+  checkpoint -> A_base.nca
+iter 21050  loss 0.01732  6.57 it/s
+iter 21100  loss 0.02192  6.57 it/s
+iter 21150  loss 0.02256  6.56 it/s
+iter 21200  loss 0.01874  6.56 it/s
+iter 21250  loss 0.01440  6.56 it/s
+  checkpoint -> A_base.nca
+iter 21300  loss 0.01979  6.56 it/s
+iter 21350  loss 0.02783  6.56 it/s
+iter 21400  loss 0.01722  6.55 it/s
+iter 21450  loss 0.01814  6.55 it/s
+iter 21500  loss 0.01860  6.55 it/s
+  checkpoint -> A_base.nca
+iter 21550  loss 0.01980  6.55 it/s
+iter 21600  loss 0.01791  6.54 it/s
+iter 21650  loss 0.01827  6.54 it/s
+iter 21700  loss 0.02579  6.54 it/s
+iter 21750  loss 0.01984  6.54 it/s
+  checkpoint -> A_base.nca
+iter 21800  loss 0.02192  6.53 it/s
+iter 21850  loss 0.01975  6.53 it/s
+iter 21900  loss 0.02381  6.53 it/s
+iter 21950  loss 0.01409  6.53 it/s
+iter 22000  loss 0.01209  6.53 it/s
+  checkpoint -> A_base.nca
+iter 22050  loss 0.01512  6.52 it/s
+iter 22100  loss 0.01558  6.52 it/s
+iter 22150  loss 0.01402  6.52 it/s
+iter 22200  loss 0.01659  6.52 it/s
+iter 22250  loss 0.02062  6.51 it/s
+  checkpoint -> A_base.nca
+iter 22300  loss 0.01603  6.51 it/s
+iter 22350  loss 0.02093  6.51 it/s
+iter 22400  loss 0.01517  6.51 it/s
+iter 22450  loss 0.02003  6.51 it/s
+iter 22500  loss 0.01569  6.51 it/s
+  checkpoint -> A_base.nca
+iter 22550  loss 0.01771  6.50 it/s
+iter 22600  loss 0.02292  6.50 it/s
+iter 22650  loss 0.01821  6.50 it/s
+iter 22700  loss 0.01579  6.50 it/s
+iter 22750  loss 0.01685  6.50 it/s
+  checkpoint -> A_base.nca
+iter 22800  loss 0.01951  6.49 it/s
+iter 22850  loss 0.01118  6.49 it/s

@@ -1,0 +1,333 @@
+13 poses across 2 states, transits [np.str_('walk'), np.str_('walk')], device cuda, batch 16, pool 2048
+motion mask: 23% of pixels move
+iter    50  loss 0.07156  3.84 it/s
+iter   100  loss 0.06727  3.90 it/s
+iter   150  loss 0.06381  3.92 it/s
+iter   200  loss 0.05800  3.93 it/s
+iter   250  loss 0.05248  3.94 it/s
+  checkpoint -> C_dense.nca
+iter   300  loss 0.05772  3.95 it/s
+iter   350  loss 0.05984  3.95 it/s
+iter   400  loss 0.05715  3.95 it/s
+iter   450  loss 0.05927  3.95 it/s
+iter   500  loss 0.05464  3.96 it/s
+  checkpoint -> C_dense.nca
+iter   550  loss 0.05569  3.96 it/s
+iter   600  loss 0.05007  3.97 it/s
+iter   650  loss 0.04921  3.97 it/s
+iter   700  loss 0.06267  3.97 it/s
+iter   750  loss 0.05044  3.97 it/s
+  checkpoint -> C_dense.nca
+iter   800  loss 0.05970  3.97 it/s
+iter   850  loss 0.06245  3.97 it/s
+iter   900  loss 0.06589  3.97 it/s
+iter   950  loss 0.06220  3.97 it/s
+iter  1000  loss 0.06222  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  1050  loss 0.06840  3.97 it/s
+iter  1100  loss 0.05934  3.97 it/s
+iter  1150  loss 0.06530  3.97 it/s
+iter  1200  loss 0.06225  3.97 it/s
+iter  1250  loss 0.05866  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  1300  loss 0.05675  3.97 it/s
+iter  1350  loss 0.06318  3.97 it/s
+iter  1400  loss 0.06339  3.97 it/s
+iter  1450  loss 0.06499  3.97 it/s
+iter  1500  loss 0.06233  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  1550  loss 0.07398  3.97 it/s
+iter  1600  loss 0.06760  3.97 it/s
+iter  1650  loss 0.06683  3.97 it/s
+iter  1700  loss 0.05521  3.97 it/s
+iter  1750  loss 0.06812  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  1800  loss 0.05329  3.97 it/s
+iter  1850  loss 0.07051  3.97 it/s
+iter  1900  loss 0.06541  3.97 it/s
+iter  1950  loss 0.05287  3.97 it/s
+iter  2000  loss 0.04721  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  2050  loss 0.05195  3.97 it/s
+iter  2100  loss 0.04203  3.97 it/s
+iter  2150  loss 0.04907  3.97 it/s
+iter  2200  loss 0.04848  3.97 it/s
+iter  2250  loss 0.05263  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  2300  loss 0.05735  3.97 it/s
+iter  2350  loss 0.05217  3.97 it/s
+iter  2400  loss 0.05925  3.97 it/s
+iter  2450  loss 0.05581  3.97 it/s
+iter  2500  loss 0.05013  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  2550  loss 0.05909  3.97 it/s
+iter  2600  loss 0.04345  3.97 it/s
+iter  2650  loss 0.04289  3.97 it/s
+iter  2700  loss 0.04283  3.97 it/s
+iter  2750  loss 0.03782  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  2800  loss 0.05359  3.97 it/s
+iter  2850  loss 0.05609  3.97 it/s
+iter  2900  loss 0.05806  3.97 it/s
+iter  2950  loss 0.05045  3.97 it/s
+iter  3000  loss 0.05067  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  3050  loss 0.05075  3.96 it/s
+iter  3100  loss 0.04937  3.96 it/s
+iter  3150  loss 0.04733  3.96 it/s
+iter  3200  loss 0.05493  3.96 it/s
+iter  3250  loss 0.04601  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  3300  loss 0.05217  3.97 it/s
+iter  3350  loss 0.03808  3.97 it/s
+iter  3400  loss 0.05836  3.97 it/s
+iter  3450  loss 0.04200  3.97 it/s
+iter  3500  loss 0.04775  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  3550  loss 0.03753  3.97 it/s
+iter  3600  loss 0.04565  3.97 it/s
+iter  3650  loss 0.03977  3.97 it/s
+iter  3700  loss 0.04141  3.97 it/s
+iter  3750  loss 0.04056  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  3800  loss 0.03380  3.97 it/s
+iter  3850  loss 0.05078  3.97 it/s
+iter  3900  loss 0.04596  3.97 it/s
+iter  3950  loss 0.04279  3.97 it/s
+iter  4000  loss 0.04175  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  4050  loss 0.03938  3.97 it/s
+iter  4100  loss 0.05276  3.97 it/s
+iter  4150  loss 0.04479  3.97 it/s
+iter  4200  loss 0.03572  3.97 it/s
+iter  4250  loss 0.03409  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  4300  loss 0.04455  3.97 it/s
+iter  4350  loss 0.03949  3.97 it/s
+iter  4400  loss 0.02683  3.97 it/s
+iter  4450  loss 0.05122  3.97 it/s
+iter  4500  loss 0.03351  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  4550  loss 0.04466  3.97 it/s
+iter  4600  loss 0.03183  3.97 it/s
+iter  4650  loss 0.03909  3.97 it/s
+iter  4700  loss 0.03930  3.97 it/s
+iter  4750  loss 0.03635  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  4800  loss 0.04255  3.97 it/s
+iter  4850  loss 0.03736  3.97 it/s
+iter  4900  loss 0.03581  3.97 it/s
+iter  4950  loss 0.04504  3.97 it/s
+iter  5000  loss 0.03472  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  5050  loss 0.03508  3.97 it/s
+iter  5100  loss 0.04427  3.97 it/s
+iter  5150  loss 0.04122  3.97 it/s
+iter  5200  loss 0.02837  3.97 it/s
+iter  5250  loss 0.03776  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  5300  loss 0.03951  3.97 it/s
+iter  5350  loss 0.03881  3.97 it/s
+iter  5400  loss 0.03764  3.97 it/s
+iter  5450  loss 0.03483  3.97 it/s
+iter  5500  loss 0.03620  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  5550  loss 0.04559  3.97 it/s
+iter  5600  loss 0.02478  3.97 it/s
+iter  5650  loss 0.03687  3.97 it/s
+iter  5700  loss 0.04402  3.97 it/s
+iter  5750  loss 0.03115  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  5800  loss 0.02911  3.97 it/s
+iter  5850  loss 0.02425  3.97 it/s
+iter  5900  loss 0.03172  3.97 it/s
+iter  5950  loss 0.03127  3.97 it/s
+iter  6000  loss 0.03592  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  6050  loss 0.03428  3.97 it/s
+iter  6100  loss 0.03130  3.97 it/s
+iter  6150  loss 0.04024  3.97 it/s
+iter  6200  loss 0.03331  3.97 it/s
+iter  6250  loss 0.03373  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  6300  loss 0.03425  3.97 it/s
+iter  6350  loss 0.03613  3.97 it/s
+iter  6400  loss 0.03183  3.97 it/s
+iter  6450  loss 0.03472  3.97 it/s
+iter  6500  loss 0.03277  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  6550  loss 0.04432  3.97 it/s
+iter  6600  loss 0.03349  3.97 it/s
+iter  6650  loss 0.03250  3.97 it/s
+iter  6700  loss 0.03303  3.97 it/s
+iter  6750  loss 0.03133  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  6800  loss 0.02532  3.97 it/s
+iter  6850  loss 0.03392  3.97 it/s
+iter  6900  loss 0.02756  3.97 it/s
+iter  6950  loss 0.03342  3.97 it/s
+iter  7000  loss 0.03067  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  7050  loss 0.02740  3.97 it/s
+iter  7100  loss 0.02419  3.97 it/s
+iter  7150  loss 0.03544  3.97 it/s
+iter  7200  loss 0.02763  3.97 it/s
+iter  7250  loss 0.02987  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  7300  loss 0.03714  3.97 it/s
+iter  7350  loss 0.03327  3.97 it/s
+iter  7400  loss 0.03202  3.97 it/s
+iter  7450  loss 0.03102  3.97 it/s
+iter  7500  loss 0.03885  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  7550  loss 0.03054  3.97 it/s
+iter  7600  loss 0.03052  3.97 it/s
+iter  7650  loss 0.02724  3.97 it/s
+iter  7700  loss 0.03771  3.97 it/s
+iter  7750  loss 0.03503  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  7800  loss 0.02741  3.97 it/s
+iter  7850  loss 0.02900  3.97 it/s
+iter  7900  loss 0.02353  3.97 it/s
+iter  7950  loss 0.02674  3.97 it/s
+iter  8000  loss 0.03099  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  8050  loss 0.02311  3.97 it/s
+iter  8100  loss 0.02798  3.97 it/s
+iter  8150  loss 0.02848  3.97 it/s
+iter  8200  loss 0.02763  3.97 it/s
+iter  8250  loss 0.03942  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  8300  loss 0.02945  3.97 it/s
+iter  8350  loss 0.02457  3.97 it/s
+iter  8400  loss 0.02598  3.97 it/s
+iter  8450  loss 0.02667  3.97 it/s
+iter  8500  loss 0.02179  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  8550  loss 0.02991  3.97 it/s
+iter  8600  loss 0.03101  3.97 it/s
+iter  8650  loss 0.03065  3.97 it/s
+iter  8700  loss 0.03162  3.97 it/s
+iter  8750  loss 0.03119  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  8800  loss 0.02444  3.97 it/s
+iter  8850  loss 0.03188  3.97 it/s
+iter  8900  loss 0.02941  3.97 it/s
+iter  8950  loss 0.02889  3.97 it/s
+iter  9000  loss 0.02919  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  9050  loss 0.02600  3.97 it/s
+iter  9100  loss 0.03332  3.97 it/s
+iter  9150  loss 0.03031  3.97 it/s
+iter  9200  loss 0.03052  3.97 it/s
+iter  9250  loss 0.01820  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  9300  loss 0.02735  3.97 it/s
+iter  9350  loss 0.02397  3.97 it/s
+iter  9400  loss 0.02354  3.97 it/s
+iter  9450  loss 0.02484  3.97 it/s
+iter  9500  loss 0.02602  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  9550  loss 0.02351  3.97 it/s
+iter  9600  loss 0.02013  3.97 it/s
+iter  9650  loss 0.04213  3.97 it/s
+iter  9700  loss 0.01848  3.97 it/s
+iter  9750  loss 0.02414  3.97 it/s
+  checkpoint -> C_dense.nca
+iter  9800  loss 0.02165  3.97 it/s
+iter  9850  loss 0.03682  3.97 it/s
+iter  9900  loss 0.02576  3.97 it/s
+iter  9950  loss 0.02446  3.97 it/s
+iter 10000  loss 0.02589  3.97 it/s
+  checkpoint -> C_dense.nca
+iter 10050  loss 0.02630  3.97 it/s
+iter 10100  loss 0.02503  3.97 it/s
+iter 10150  loss 0.02169  3.97 it/s
+iter 10200  loss 0.02665  3.97 it/s
+iter 10250  loss 0.02142  3.97 it/s
+  checkpoint -> C_dense.nca
+iter 10300  loss 0.02364  3.97 it/s
+iter 10350  loss 0.02275  3.97 it/s
+iter 10400  loss 0.02376  3.97 it/s
+iter 10450  loss 0.02471  3.97 it/s
+iter 10500  loss 0.02520  3.97 it/s
+  checkpoint -> C_dense.nca
+iter 10550  loss 0.02733  3.97 it/s
+iter 10600  loss 0.02497  3.97 it/s
+iter 10650  loss 0.02181  3.97 it/s
+iter 10700  loss 0.02504  3.97 it/s
+iter 10750  loss 0.02375  3.97 it/s
+  checkpoint -> C_dense.nca
+iter 10800  loss 0.02319  3.97 it/s
+iter 10850  loss 0.02476  3.97 it/s
+iter 10900  loss 0.02441  3.97 it/s
+iter 10950  loss 0.02228  3.97 it/s
+iter 11000  loss 0.02334  3.97 it/s
+  checkpoint -> C_dense.nca
+iter 11050  loss 0.02367  3.97 it/s
+iter 11100  loss 0.02458  3.97 it/s
+iter 11150  loss 0.02514  3.97 it/s
+iter 11200  loss 0.02576  3.97 it/s
+iter 11250  loss 0.02306  3.97 it/s
+  checkpoint -> C_dense.nca
+iter 11300  loss 0.02225  3.97 it/s
+iter 11350  loss 0.02101  3.96 it/s
+iter 11400  loss 0.02009  3.96 it/s
+iter 11450  loss 0.02347  3.96 it/s
+iter 11500  loss 0.02633  3.96 it/s
+  checkpoint -> C_dense.nca
+iter 11550  loss 0.02183  3.96 it/s
+iter 11600  loss 0.02072  3.96 it/s
+iter 11650  loss 0.02102  3.96 it/s
+iter 11700  loss 0.02261  3.95 it/s
+iter 11750  loss 0.02006  3.95 it/s
+  checkpoint -> C_dense.nca
+iter 11800  loss 0.02453  3.95 it/s
+iter 11850  loss 0.02097  3.95 it/s
+iter 11900  loss 0.02068  3.95 it/s
+iter 11950  loss 0.01990  3.95 it/s
+iter 12000  loss 0.01972  3.95 it/s
+  checkpoint -> C_dense.nca
+iter 12050  loss 0.02634  3.95 it/s
+iter 12100  loss 0.02506  3.94 it/s
+iter 12150  loss 0.01883  3.94 it/s
+iter 12200  loss 0.02046  3.94 it/s
+iter 12250  loss 0.02566  3.94 it/s
+  checkpoint -> C_dense.nca
+iter 12300  loss 0.01949  3.94 it/s
+iter 12350  loss 0.01875  3.94 it/s
+iter 12400  loss 0.02352  3.94 it/s
+iter 12450  loss 0.02650  3.94 it/s
+iter 12500  loss 0.02600  3.93 it/s
+  checkpoint -> C_dense.nca
+iter 12550  loss 0.02477  3.93 it/s
+iter 12600  loss 0.01879  3.93 it/s
+iter 12650  loss 0.02191  3.93 it/s
+iter 12700  loss 0.02630  3.93 it/s
+iter 12750  loss 0.01694  3.93 it/s
+  checkpoint -> C_dense.nca
+iter 12800  loss 0.01740  3.93 it/s
+iter 12850  loss 0.02132  3.93 it/s
+iter 12900  loss 0.02466  3.93 it/s
+iter 12950  loss 0.02246  3.92 it/s
+iter 13000  loss 0.01778  3.92 it/s
+  checkpoint -> C_dense.nca
+iter 13050  loss 0.02386  3.92 it/s
+iter 13100  loss 0.01793  3.92 it/s
+iter 13150  loss 0.02524  3.92 it/s
+iter 13200  loss 0.02518  3.92 it/s
+iter 13250  loss 0.02328  3.92 it/s
+  checkpoint -> C_dense.nca
+iter 13300  loss 0.01946  3.92 it/s
+iter 13350  loss 0.02674  3.92 it/s
+iter 13400  loss 0.01896  3.92 it/s
+iter 13450  loss 0.01817  3.91 it/s
+iter 13500  loss 0.02758  3.91 it/s
+  checkpoint -> C_dense.nca
+iter 13550  loss 0.01898  3.91 it/s
+iter 13600  loss 0.02807  3.91 it/s
+iter 13650  loss 0.01419  3.91 it/s
+iter 13700  loss 0.02129  3.91 it/s
+iter 13750  loss 0.02108  3.91 it/s
+  checkpoint -> C_dense.nca
+iter 13800  loss 0.02561  3.91 it/s

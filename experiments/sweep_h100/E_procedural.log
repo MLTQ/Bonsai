@@ -1,0 +1,102 @@
+13 poses across 2 states, transits [np.str_('walk'), np.str_('walk')], device cuda, batch 16, pool 2048
+motion mask: 15% of pixels move
+iter    50  loss 0.05754  5.28 it/s
+iter   100  loss 0.06012  5.50 it/s
+iter   150  loss 0.05387  5.54 it/s
+iter   200  loss 0.04743  5.56 it/s
+iter   250  loss 0.04536  5.59 it/s
+  checkpoint -> E_procedural.nca
+iter   300  loss 0.04477  5.62 it/s
+iter   350  loss 0.04254  5.63 it/s
+iter   400  loss 0.03908  5.65 it/s
+iter   450  loss 0.04273  5.65 it/s
+iter   500  loss 0.04235  5.65 it/s
+  checkpoint -> E_procedural.nca
+iter   550  loss 0.03837  5.66 it/s
+iter   600  loss 0.04330  5.66 it/s
+iter   650  loss 0.03855  5.66 it/s
+iter   700  loss 0.04441  5.67 it/s
+iter   750  loss 0.03854  5.67 it/s
+  checkpoint -> E_procedural.nca
+iter   800  loss 0.04220  5.68 it/s
+iter   850  loss 0.03876  5.68 it/s
+iter   900  loss 0.04144  5.68 it/s
+iter   950  loss 0.04260  5.69 it/s
+iter  1000  loss 0.04359  5.69 it/s
+  checkpoint -> E_procedural.nca
+iter  1050  loss 0.03259  5.69 it/s
+iter  1100  loss 0.03656  5.69 it/s
+iter  1150  loss 0.03252  5.69 it/s
+iter  1200  loss 0.04423  5.68 it/s
+iter  1250  loss 0.03987  5.69 it/s
+  checkpoint -> E_procedural.nca
+iter  1300  loss 0.03901  5.69 it/s
+iter  1350  loss 0.04688  5.69 it/s
+iter  1400  loss 0.03553  5.69 it/s
+iter  1450  loss 0.03396  5.69 it/s
+iter  1500  loss 0.03274  5.69 it/s
+  checkpoint -> E_procedural.nca
+iter  1550  loss 0.02920  5.69 it/s
+iter  1600  loss 0.02748  5.69 it/s
+iter  1650  loss 0.02930  5.69 it/s
+iter  1700  loss 0.03335  5.69 it/s
+iter  1750  loss 0.04225  5.69 it/s
+  checkpoint -> E_procedural.nca
+iter  1800  loss 0.02887  5.69 it/s
+iter  1850  loss 0.03615  5.69 it/s
+iter  1900  loss 0.03465  5.69 it/s
+iter  1950  loss 0.03641  5.69 it/s
+iter  2000  loss 0.03127  5.69 it/s
+  checkpoint -> E_procedural.nca
+iter  2050  loss 0.03229  5.69 it/s
+iter  2100  loss 0.02914  5.69 it/s
+iter  2150  loss 0.03113  5.68 it/s
+iter  2200  loss 0.02596  5.68 it/s
+iter  2250  loss 0.02961  5.68 it/s
+  checkpoint -> E_procedural.nca
+iter  2300  loss 0.03060  5.68 it/s
+iter  2350  loss 0.03342  5.68 it/s
+iter  2400  loss 0.02950  5.68 it/s
+iter  2450  loss 0.03058  5.68 it/s
+iter  2500  loss 0.02888  5.68 it/s
+  checkpoint -> E_procedural.nca
+iter  2550  loss 0.02767  5.68 it/s
+iter  2600  loss 0.02672  5.68 it/s
+iter  2650  loss 0.02956  5.68 it/s
+iter  2700  loss 0.03416  5.68 it/s
+iter  2750  loss 0.02354  5.68 it/s
+  checkpoint -> E_procedural.nca
+iter  2800  loss 0.02459  5.68 it/s
+iter  2850  loss 0.02897  5.68 it/s
+iter  2900  loss 0.02925  5.68 it/s
+iter  2950  loss 0.02811  5.68 it/s
+iter  3000  loss 0.03539  5.68 it/s
+  checkpoint -> E_procedural.nca
+iter  3050  loss 0.02352  5.68 it/s
+iter  3100  loss 0.03046  5.68 it/s
+iter  3150  loss 0.02296  5.68 it/s
+iter  3200  loss 0.02571  5.68 it/s
+iter  3250  loss 0.02493  5.68 it/s
+  checkpoint -> E_procedural.nca
+iter  3300  loss 0.03064  5.68 it/s
+iter  3350  loss 0.02054  5.68 it/s
+iter  3400  loss 0.02841  5.68 it/s
+iter  3450  loss 0.01976  5.68 it/s
+iter  3500  loss 0.02661  5.68 it/s
+  checkpoint -> E_procedural.nca
+iter  3550  loss 0.01965  5.68 it/s
+iter  3600  loss 0.02191  5.69 it/s
+iter  3650  loss 0.02104  5.68 it/s
+iter  3700  loss 0.02478  5.68 it/s
+iter  3750  loss 0.02535  5.68 it/s
+  checkpoint -> E_procedural.nca
+iter  3800  loss 0.02529  5.68 it/s
+iter  3850  loss 0.02486  5.68 it/s
+iter  3900  loss 0.02154  5.68 it/s
+iter  3950  loss 0.02757  5.68 it/s
+iter  4000  loss 0.02431  5.68 it/s
+  checkpoint -> E_procedural.nca
+iter  4050  loss 0.02032  5.68 it/s
+iter  4100  loss 0.02180  5.68 it/s
+iter  4150  loss 0.02393  5.68 it/s
+iter  4200  loss 0.02814  5.68 it/s
