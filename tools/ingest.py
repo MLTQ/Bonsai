@@ -219,12 +219,13 @@ def ingest_constellation(args):
             all_poses.append(load_image(p, GRID2, key_white=args.key_white))
             pose_state.append(s)
         # optional directed edges (local indices); enables waypoints + hysteresis
-        for (a, b) in spec.get("edges", []):
-            edge_list.append((base + a, base + b))
+        for e in spec.get("edges", []):
+            # [from, to] or [from, to, weight] — weight makes rare side-loops rare
+            edge_list.append((base + e[0], base + e[1], e[2] if len(e) > 2 else 1))
     np.savez_compressed(args.out, kind="2d_constellation",
                         poses=np.stack(all_poses), pose_state=np.array(pose_state),
                         transits=np.array(transits), state_names=np.array(names),
-                        edges=np.array(edge_list if edge_list else np.zeros((0, 2), int)))
+                        edges=np.array(edge_list if edge_list else np.zeros((0, 3), int)))
     print(f"constellation: {len(all_poses)} poses, states {names} -> {args.out}")
 
 

@@ -40,6 +40,9 @@ def main():
     ap.add_argument("--pool", type=int, default=POOL_SIZE)
     ap.add_argument("--hidden", type=int, default=None,
                     help="update-rule width (Swift parses it from the header; 128 default)")
+    ap.add_argument("--motion-weight", type=float, default=0.0,
+                    help="alpha: loss weight becomes 1 + alpha*normalized per-pixel "
+                         "variance across a state's poses. Lets tiny motions train.")
     ap.add_argument("--waypoints", type=int, default=4,
                     help="targets advanced along the graph within one rollout "
                          "(1 = old single-hop behavior)")
@@ -61,8 +64,10 @@ def main():
     transits = list(data["transits"])                # per-state "walk" | "cycle"
     edges = data["edges"] if "edges" in data.files else np.zeros((0, 2), int)
     successors = {}                                   # directed graph, if provided
-    for a, b in edges:
-        successors.setdefault(int(a), []).append(int(b))
+    for e in edges:
+        a, b = int(e[0]), int(e[1])
+        weight = int(e[2]) if len(e) > 2 else 1      # repeat = probability weight
+        successors.setdefault(a, []).extend([b] * max(1, weight))
     n_states = int(pose_state.max()) + 1
     assert n_states == 2, "cond=1 flag: 2 states (manifold trainer for more)"
     train_states.GRID = poses.shape[1]
@@ -74,6 +79,19 @@ def main():
     poses_t = torch.from_numpy(poses).permute(0, 3, 1, 2).to(device)  # (P,4,G,G)
     pose_state_t = torch.from_numpy(pose_state).to(device)
     state_pose_idx = [np.where(pose_state == s)[0] for s in range(n_states)]
+
+    # per-state motion mask: where does this state's pose set actually vary?
+    motion_w = torch.ones(1, 1, train_states.GRID, train_states.GRID, device=device)
+    if args.motion_weight > 0:
+        v = np.zeros((train_states.GRID, train_states.GRID), np.float32)
+        for s in range(n_states):
+            ps = poses[state_pose_idx[s]]
+            if len(ps) > 1:
+                v = np.maximum(v, ps.var(axis=0).mean(axis=-1))
+        v = v / (v.max() + 1e-9)
+        motion_w = (1.0 + args.motion_weight *
+                    torch.from_numpy(v)[None, None].to(device))
+        print(f"motion mask: {float((v > 0.1).mean()) * 100:.0f}% of pixels move", flush=True)
 
     model = StateNCA().to(device)
     opt = torch.optim.Adam(model.parameters(), lr=2e-3)
@@ -150,7 +168,8 @@ def main():
             for _ in range(seg):
                 x = model(x, st)
             w = 0.6 + 0.4 * (j + 1) / K            # later waypoints weigh a little more
-            loss = loss + w * ((x[:, :4] - poses_t[chain_t[:, j]]) ** 2).mean()
+            err = (x[:, :4] - poses_t[chain_t[:, j]]) ** 2
+            loss = loss + w * (err * motion_w).mean()
         loss = loss / K
 
         if not torch.isfinite(loss):
