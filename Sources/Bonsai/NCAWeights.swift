@@ -6,6 +6,10 @@ import Foundation
 /// NCA3 (train_manifold.py): i32 ch, hidden, zdim; fire; w1[h][ch*3+2] (sin/cos phase),
 ///                           b1, w2, b2, then FiLM: filmW[2*hidden][zdim], filmB[2*hidden].
 ///                           Phase rides as 2 cond channels; z modulates via FiLM.
+/// NCAP (pooled_nca.py):     + i32 npool after cond; w1 rows widen to ch*3+cond+npool.
+///                           Breaks strict locality: the extra inputs are a spatial
+///                           reduction over the whole grid, so the runtime must run
+///                           nca_pool before every nca_step.
 struct NCAWeights {
     static let channels = 16
 
@@ -15,6 +19,12 @@ struct NCAWeights {
     let cond: Int
     /// FiLM latent dimension (NCA3 only; 0 otherwise).
     let zdim: Int
+    /// Globally-broadcast feedback channels (NCAP only; 0 otherwise). These are
+    /// the alive-masked spatial mean of state channels [4, 4+npool), recomputed
+    /// each step and appended to every cell's perception — see
+    /// training/pooled_nca.py. Non-zero npool means the creature is not strictly
+    /// local and needs the reduction pass before each step.
+    let npool: Int
     /// 2 for planar creatures (3 perception kernels), 3 for volumetric (4 kernels:
     /// identity + Sobel x/y/z). Formats NC3D (static) and NC3C (cyclic) are 3D.
     let spatialDims: Int
@@ -32,7 +42,7 @@ struct NCAWeights {
         var description: String {
             switch self {
             case .unreadable(let p): return "cannot read weights file: \(p)"
-            case .badMagic: return "not an NCA1/NCA2/NCA3 weights file"
+            case .badMagic: return "not an NCA1/NCA2/NCA3/NCAP weights file"
             case .shapeMismatch(let s): return "unsupported shape: \(s)"
             case .truncated: return "weights file is truncated"
             }
@@ -45,7 +55,7 @@ struct NCAWeights {
         }
         guard data.count > 20 else { throw LoadError.badMagic }
         let magic = String(decoding: data.prefix(4), as: UTF8.self)
-        guard ["NCA1", "NCA2", "NCA3", "NC3D", "NC3C", "NC3M"].contains(magic) else {
+        guard ["NCA1", "NCA2", "NCA3", "NCAP", "NC3D", "NC3C", "NC3M"].contains(magic) else {
             throw LoadError.badMagic
         }
         let spatialDims = magic.hasPrefix("NC3") ? 3 : 2
@@ -62,8 +72,14 @@ struct NCAWeights {
             throw LoadError.shapeMismatch("ch=\(ch) hidden=\(hidden)")
         }
         var offset = 12
-        var cond = 0, zdim = 0
+        var cond = 0, zdim = 0, npool = 0
         switch magic {
+        case "NCAP":
+            cond = i32(12)
+            npool = i32(16)
+            guard (0...4).contains(cond) else { throw LoadError.shapeMismatch("cond=\(cond)") }
+            guard (1...8).contains(npool) else { throw LoadError.shapeMismatch("npool=\(npool)") }
+            offset = 20
         case "NCA2", "NC3C":
             cond = i32(12)
             guard (0...4).contains(cond) else { throw LoadError.shapeMismatch("cond=\(cond)") }
@@ -79,7 +95,7 @@ struct NCAWeights {
         let fireRate = f32(offset)
         offset += 4
 
-        let w1In = channels * (spatialDims == 3 ? 4 : 3) + cond
+        let w1In = channels * (spatialDims == 3 ? 4 : 3) + cond + npool
         let baseCount = hidden * w1In + hidden + channels * hidden + channels
         let filmCount = zdim > 0 ? (2 * hidden * zdim + 2 * hidden) : 0
         guard data.count >= offset + (baseCount + filmCount) * 4 else { throw LoadError.truncated }
@@ -96,7 +112,7 @@ struct NCAWeights {
         }
 
         return NCAWeights(hidden: hidden, fireRate: fireRate, cond: cond, zdim: zdim,
-                          spatialDims: spatialDims,
+                          npool: npool, spatialDims: spatialDims,
                           flat: floats(offset, baseCount),
                           film: floats(offset + baseCount * 4, filmCount))
     }

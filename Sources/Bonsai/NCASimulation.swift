@@ -12,6 +12,7 @@ final class NCASimulation {
     private let stepPipeline: MTLComputePipelineState
     private let lifePipeline: MTLComputePipelineState
     private let renderPipeline: MTLComputePipelineState
+    private let poolPipeline: MTLComputePipelineState
 
     // Three-buffer rotation: step reads `cur` -> writes `tmp`; life mask reads
     // `cur` (pre) + `tmp` (post) -> writes `next`; then cur and next swap.
@@ -20,6 +21,7 @@ final class NCASimulation {
     private var next: MTLBuffer
     private var weightsBuffer: MTLBuffer
     private var filmBuffer: MTLBuffer
+    private var poolBuffer: MTLBuffer
 
     private var fireRate: Float
     private var stepCounter: UInt32 = 0
@@ -31,6 +33,8 @@ final class NCASimulation {
     let hiddenCount: Int
     /// FiLM latent dimension (0 = no FiLM). When > 0, set `zTarget` to steer mood.
     let zdim: Int
+    /// Pooled feedback channels (NCAP). When > 0, nca_pool runs before every step.
+    let npool: Int
     private var filmMatrix: [Float] = []   // (2*hidden, zdim) row-major + bias (2*hidden)
     private var zCurrent: [Float] = []
     /// Desired latent point; the simulation eases toward it (~2%/step) so moods morph.
@@ -68,6 +72,7 @@ final class NCASimulation {
         self.condCount = weights.cond
         self.hiddenCount = weights.hidden
         self.zdim = weights.zdim
+        self.npool = weights.npool
         self.filmMatrix = weights.film
         self.zCurrent = [Float](repeating: 0.5, count: weights.zdim)
         self.zTarget = self.zCurrent
@@ -77,18 +82,21 @@ final class NCASimulation {
 
         guard let library = try? device.makeLibrary(
                   source: ncaMetalSource(cond: weights.cond, hidden: weights.hidden,
-                                         useFilm: weights.zdim > 0),
+                                         useFilm: weights.zdim > 0, npool: weights.npool),
                   options: nil),
               let stepFn = library.makeFunction(name: "nca_step"),
               let lifeFn = library.makeFunction(name: "nca_life"),
               let renderFn = library.makeFunction(name: "nca_render"),
+              let poolFn = library.makeFunction(name: "nca_pool"),
               let stepPS = try? device.makeComputePipelineState(function: stepFn),
               let lifePS = try? device.makeComputePipelineState(function: lifeFn),
-              let renderPS = try? device.makeComputePipelineState(function: renderFn)
+              let renderPS = try? device.makeComputePipelineState(function: renderFn),
+              let poolPS = try? device.makeComputePipelineState(function: poolFn)
         else { return nil }
         stepPipeline = stepPS
         lifePipeline = lifePS
         renderPipeline = renderPS
+        poolPipeline = poolPS
 
         let stateBytes = gridWidth * gridHeight * NCAWeights.channels * MemoryLayout<Float>.size
         guard let a = device.makeBuffer(length: stateBytes, options: .storageModeShared),
@@ -98,9 +106,11 @@ final class NCASimulation {
                                         length: weights.flat.count * MemoryLayout<Float>.size,
                                         options: .storageModeShared),
               let f = device.makeBuffer(length: max(2 * weights.hidden, 2) * MemoryLayout<Float>.size,
+                                        options: .storageModeShared),
+              let g = device.makeBuffer(length: max(weights.npool, 1) * MemoryLayout<Float>.size,
                                         options: .storageModeShared)
         else { return nil }
-        cur = a; tmp = b; next = c; weightsBuffer = w; filmBuffer = f
+        cur = a; tmp = b; next = c; weightsBuffer = w; filmBuffer = f; poolBuffer = g
         refreshFilm()
 
         reseed()
@@ -134,6 +144,7 @@ final class NCASimulation {
     @discardableResult
     func updateWeights(_ weights: NCAWeights) -> Bool {
         guard weights.cond == condCount, weights.hidden == hiddenCount, weights.zdim == zdim,
+              weights.npool == npool,
               let w = device.makeBuffer(bytes: weights.flat,
                                         length: weights.flat.count * MemoryLayout<Float>.size,
                                         options: .storageModeShared) else { return false }
@@ -199,12 +210,26 @@ final class NCASimulation {
             pendingDamage = nil
             stepCounter &+= 1
 
+            if npool > 0 {
+                // The global variable must be current before every step: one
+                // threadgroup strides the grid and reduces in shared memory.
+                guard let encP = cmd.makeComputeCommandEncoder() else { return }
+                encP.setComputePipelineState(poolPipeline)
+                encP.setBuffer(cur, offset: 0, index: 0)
+                encP.setBuffer(poolBuffer, offset: 0, index: 1)
+                encP.setBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 2)
+                encP.dispatchThreadgroups(MTLSize(width: 1, height: 1, depth: 1),
+                                          threadsPerThreadgroup: MTLSize(width: 256, height: 1, depth: 1))
+                encP.endEncoding()
+            }
+
             guard let enc = cmd.makeComputeCommandEncoder() else { return }
             enc.setBuffer(cur, offset: 0, index: 0)
             enc.setBuffer(tmp, offset: 0, index: 1)
             enc.setBuffer(weightsBuffer, offset: 0, index: 2)
             enc.setBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 3)
             enc.setBuffer(filmBuffer, offset: 0, index: 4)
+            enc.setBuffer(poolBuffer, offset: 0, index: 5)
             dispatch(enc, stepPipeline, width: gridWidth, height: gridHeight)
             enc.endEncoding()
 

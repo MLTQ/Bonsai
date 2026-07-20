@@ -10,7 +10,7 @@
 /// ordering [identity, sobelX, sobelY] interleaved per channel, sobel / 8,
 /// cross-correlation with zero padding, per-cell stochastic fire mask, and life
 /// mask = alive(pre) AND alive(post) where alive is maxpool3x3(alpha) > 0.1.
-func ncaMetalSource(cond: Int, hidden: Int = 128, useFilm: Bool = false) -> String {
+func ncaMetalSource(cond: Int, hidden: Int = 128, useFilm: Bool = false, npool: Int = 0) -> String {
     """
     #include <metal_stdlib>
     using namespace metal;
@@ -18,7 +18,8 @@ func ncaMetalSource(cond: Int, hidden: Int = 128, useFilm: Bool = false) -> Stri
     constant int CH = 16;
     constant int PCH = 48;
     constant int COND = \(cond);
-    constant int PIN = PCH + COND;   // w1 input width
+    constant int NPOOL = \(npool);  // globally-broadcast feedback channels (NCAP)
+    constant int PIN = PCH + COND + NPOOL;   // w1 input width
     constant int HIDDEN = \(hidden);
     constant bool USE_FILM = \(useFilm);
 
@@ -57,6 +58,7 @@ func ncaMetalSource(cond: Int, hidden: Int = 128, useFilm: Bool = false) -> Stri
                          const device float *weights  [[buffer(2)]],
                          constant Uniforms &u         [[buffer(3)]],
                          const device float *film     [[buffer(4)]],   // gamma[HIDDEN], beta[HIDDEN]
+                         const device float *pooled   [[buffer(5)]],   // g[NPOOL] from nca_pool
                          uint2 gid [[thread_position_in_grid]]) {
         int W = u.width, H = u.height;
         if ((int)gid.x >= W || (int)gid.y >= H) return;
@@ -75,6 +77,7 @@ func ncaMetalSource(cond: Int, hidden: Int = 128, useFilm: Bool = false) -> Stri
             float cv[4] = { u.cond0, u.cond1, u.cond2, u.cond3 };
             for (int i = 0; i < COND; i++) percept[PCH + i] = cv[i];
         }
+        for (int i = 0; i < NPOOL; i++) percept[PCH + COND + i] = pooled[i];
 
         const device float *w1 = weights;
         const device float *b1 = w1 + HIDDEN * PIN;
@@ -118,6 +121,46 @@ func ncaMetalSource(cond: Int, hidden: Int = 128, useFilm: Bool = false) -> Stri
 
     // Life mask: cells not alive both before and after the update are zeroed.
     // Reads pre and post, writes a third buffer to avoid read/write races.
+    // Alive-masked spatial mean of state channels [4, 4+NPOOL) — the global
+    // variable of a pooled creature (training/pooled_nca.py). One threadgroup;
+    // each thread strides the grid, then a shared-memory tree reduction.
+    // Count clamps to >= 1, matching the PyTorch reference exactly.
+    kernel void nca_pool(const device float *src   [[buffer(0)]],
+                         device float *outPooled   [[buffer(1)]],
+                         constant Uniforms &u      [[buffer(2)]],
+                         uint tid [[thread_position_in_threadgroup]],
+                         uint tcount [[threads_per_threadgroup]]) {
+        threadgroup float sums[256 * 9];   // NPOOL <= 8, +1 for the alive count
+        int W = u.width, H = u.height;
+        float acc[9];
+        for (int i = 0; i <= NPOOL; i++) acc[i] = 0.0;
+        for (int idx = tid; idx < W * H; idx += tcount) {
+            int x = idx % W, y = idx / W;
+            // alive = 3x3 max of alpha > 0.1 (same rule as nca_life's masks)
+            float m = 0.0;
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++)
+                    m = max(m, cellCh(src, x + dx, y + dy, 3, W, H));
+            if (m > 0.1) {
+                int base = idx * CH;
+                for (int i = 0; i < NPOOL; i++) acc[i] += src[base + 4 + i];
+                acc[NPOOL] += 1.0;
+            }
+        }
+        for (int i = 0; i <= NPOOL; i++) sums[tid * 9 + i] = acc[i];
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        for (uint stride = tcount / 2; stride > 0; stride /= 2) {
+            if (tid < stride)
+                for (int i = 0; i <= NPOOL; i++)
+                    sums[tid * 9 + i] += sums[(tid + stride) * 9 + i];
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+        }
+        if (tid == 0) {
+            float n = max(sums[NPOOL], 1.0f);
+            for (int i = 0; i < NPOOL; i++) outPooled[i] = sums[i] / n;
+        }
+    }
+
     kernel void nca_life(const device float *pre   [[buffer(0)]],
                          const device float *post  [[buffer(1)]],
                          device float *outBuf      [[buffer(2)]],
