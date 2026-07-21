@@ -181,6 +181,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let ok = creature.volumetric ? sim3D?.updateWeights(weights) : sim?.updateWeights(weights)
         if ok != true {
             load(creature: creature)  // shape changed: rebuild
+        } else if creature.volumetric {
+            // New weights can't resurrect a dead grid (the alive mask holds it at
+            // zero), and mid-training checkpoints often die. Regrow from seed on
+            // every hot-reload so live training progress is actually visible.
+            sim3D?.reseed()
         }
     }
 

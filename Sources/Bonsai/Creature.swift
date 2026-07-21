@@ -38,6 +38,10 @@ struct Creature {
                  makeBehavior: { nil }, volumetric: true, grid3D: 64),
         Creature(name: "Claudeguy (training)", fileName: "claudeguy.nca", renderStyle: 0,
                  makeBehavior: { nil }, volumetric: true, grid3D: 64),
+        // Frozen mid-metamorphosis (~4.5k iters of shoggoth->Claudeguy): Max
+        // loved the nebulous look, so this checkpoint is a creature forever.
+        Creature(name: "Claudeguy Nebula", fileName: "claudeguy_nebula.nca", renderStyle: 0,
+                 makeBehavior: { nil }, volumetric: true, grid3D: 64),
         Creature(name: "Moss Spirit", fileName: "moss_spirit.nca", renderStyle: 0,
                  makeBehavior: { StateBehavior() },
                  flagStates: [("calm", "content"), ("rage", "agitated")]),
