@@ -23,10 +23,30 @@ def _coords():
 
 
 def _sphere(vol, cx, cy, cz, r, color, soft=0.8):
-    x, y, z = _coords()
+    """Bounded: the mask is zero outside d < r + soft, so compute only that box.
+
+    The old full-canvas version allocated a fresh 3xS^3 mgrid (~25 MB at 64^3
+    SS=2) per call and swept the whole canvas — hundreds of times per mood
+    frame once faces arrived, which turned a corpus build into a 13-hour job.
+    Same formula on index-identical sub-coordinates: bit-identical output.
+    """
+    reach = r + soft
+    i0 = max(0, int(np.floor((cx - reach) * SS)))
+    j0 = max(0, int(np.floor((cy - reach) * SS)))
+    k0 = max(0, int(np.floor((cz - reach) * SS)))
+    i1 = min(S, int(np.ceil((cx + reach) * SS)) + 1)
+    j1 = min(S, int(np.ceil((cy + reach) * SS)) + 1)
+    k1 = min(S, int(np.ceil((cz + reach) * SS)) + 1)
+    if i0 >= i1 or j0 >= j1 or k0 >= k1:
+        return
+    x, y, z = np.mgrid[i0:i1, j0:j1, k0:k1].astype(np.float32) / SS
     d = np.sqrt((x - cx) ** 2 + (y - cy) ** 2 + (z - cz) ** 2)
     m = np.clip((r - d) / soft, 0, 1)
-    _composite(vol, m, color)
+    sub = vol[i0:i1, j0:j1, k0:k1]
+    a = m[..., None]
+    rgb = np.array(color, np.float32)[None, None, None, :]
+    sub[..., 3:4] = np.maximum(sub[..., 3:4], a)
+    np.copyto(sub[..., 0:3], rgb, where=a > 0.15)
 
 
 def _swept(vol, pts, r0, r1, color, soft=0.6):
