@@ -192,15 +192,24 @@ def save_preview(model, device, path):
 
 
 def main():
+    global BATCH, POOL_SIZE
     ap = argparse.ArgumentParser()
     ap.add_argument("--iters", type=int, default=30000)
     ap.add_argument("--corpus", default="corpus_shoggoth3d.npz")
     ap.add_argument("--out", default="shoggoth3d_manifold.nca")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    ap.add_argument("--batch", type=int, default=BATCH)
+    ap.add_argument("--pool", type=int, default=POOL_SIZE)
+    ap.add_argument("--init", default=None,
+                    help="warm start from NC3C (cyclic) or NC3M weights. NC3C rows "
+                         "are ch*4+3 wide (sin,cos,behavior); the behavior column "
+                         "is dropped and FiLM is zeroed so iteration 0 behaves "
+                         "exactly like the cyclic parent -- the lineage recipe.")
     ap.add_argument("--fused", action="store_true",
                     help="Triton fused step (CUDA only; see fused_step.py)")
     args = ap.parse_args()
 
+    BATCH, POOL_SIZE = args.batch, args.pool
     device = torch.device(args.device)
     torch.manual_seed(0)
     np.random.seed(0)
@@ -208,6 +217,33 @@ def main():
     corpus = Corpus(args.corpus, device)
     print(f"corpus: {corpus.n} volumetric cycles, device {device}", flush=True)
     model = ManifoldNCA3D().to(device)
+    if args.init:
+        with open(args.init, "rb") as f:
+            magic = f.read(4)
+            hdr = np.fromfile(f, dtype="<i4", count=3 if magic == b"NC3M" else 2)
+            if magic == b"NC3C":
+                ch, hidden = int(hdr[0]), int(hdr[1])
+                cond = int(np.fromfile(f, dtype="<i4", count=1)[0])
+            else:
+                assert magic == b"NC3M", f"cannot warm-start from {magic!r}"
+                ch, hidden, _zd = (int(v) for v in hdr)
+                cond = 2
+            np.fromfile(f, dtype="<f4", count=1)  # fire rate
+            w1in = ch * 4 + cond
+            w1 = np.fromfile(f, dtype="<f4", count=hidden * w1in).reshape(hidden, w1in)
+            b1 = np.fromfile(f, dtype="<f4", count=hidden)
+            w2 = np.fromfile(f, dtype="<f4", count=ch * hidden).reshape(ch, hidden)
+            b2 = np.fromfile(f, dtype="<f4", count=ch)
+        assert ch == CH and hidden == HIDDEN, f"shape mismatch {ch}/{hidden}"
+        keep = CH * 4 + 2                      # perception + sin + cos
+        model.w1.weight.data.copy_(
+            torch.from_numpy(w1[:, :keep]).to(device)[..., None, None, None])
+        model.w1.bias.data.copy_(torch.from_numpy(b1).to(device))
+        model.w2.weight.data.copy_(torch.from_numpy(w2).to(device)[..., None, None, None])
+        model.w2.bias.data.copy_(torch.from_numpy(b2).to(device))
+        nn.init.zeros_(model.film.weight)      # start EXACTLY as the parent
+        nn.init.zeros_(model.film.bias)
+        print(f"warm-started from {args.init} ({magic.decode()}); film zeroed", flush=True)
     model.fused = args.fused
     base_params = [p for n, p in model.named_parameters() if not n.startswith("film")]
     opt = torch.optim.Adam([

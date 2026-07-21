@@ -209,7 +209,8 @@ def _paint_sheet(vol, name):
 
 
 def draw_claudeguy(phase=0.0, blink=0.0, look=(0.0, 0.0), petal_flex=None,
-                   expression="neutral", spin=0.0, wiggle=0.0, sheet=None):
+                   expression="neutral", spin=0.0, wiggle=0.0, sheet=None,
+                   droop=None):
     """One volumetric frame. Faces +z. All animation inputs optional (static default).
     petal_flex: optional per-petal radial flex array (N_PETALS,) in [-1, 1].
     expression: key into EXPRESSIONS (overrides look; composes with blink/petal_flex)."""
@@ -218,7 +219,8 @@ def draw_claudeguy(phase=0.0, blink=0.0, look=(0.0, 0.0), petal_flex=None,
         petal_flex = np.zeros(N_PETALS)
     ex = EXPRESSIONS[expression]
     look = ex["look"] if expression != "neutral" else look
-    droop = SHEET_DROOP.get(sheet, 0.0) if sheet else ex["droop"]
+    if droop is None:
+        droop = SHEET_DROOP.get(sheet, 0.0) if sheet else ex["droop"]
 
     fy = 17.0 * K          # face center height (32-units: y=17)
     fz = C + 2.0 * K       # face plane pushed toward the viewer
