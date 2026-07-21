@@ -214,6 +214,8 @@ final class ManifoldBehavior: CreatureBehavior {
 final class StateBehavior: CreatureBehavior {
     private let anchorFile = AnchorFile.load()
     private var rage: Float = 0
+    /// Live mood readout for the explorer (0 = first state, 1 = second).
+    var currentRage: Float { rage }
     private var lastControlCheck = Date.distantPast
     private var controlMTime: Date?
 

@@ -8,18 +8,27 @@ import AppKit
 final class StateMapPanel: NSPanel {
     private let mapView: StateMapView
 
-    static func make(for creature: Creature?) -> StateMapPanel? {
+    /// `live` supplies the creature's CURRENT position: a [x, y] in map
+    /// coordinates, or a full z vector (projected onto the map by kNN).
+    static func make(for creature: Creature?,
+                     live: (() -> [Double]?)? = nil) -> StateMapPanel? {
         if let name = creature?.stateMapName, let map = StateMap.load(named: name) {
-            return StateMapPanel(map: map)
+            return StateMapPanel(map: map, live: live)
         }
         if let states = creature?.flagStates {
-            return StateMapPanel(map: StateMap.islands(states))
+            return StateMapPanel(map: StateMap.islands(states), live: live)
         }
-        return StateMap.load(named: "statemap_2d.json").map { StateMapPanel(map: $0) }
+        if creature?.volumetric == true {
+            // Cyclic creature: its true state space is a phase circle, not the
+            // shoggoth manifold the old fallback showed (Max caught this twice).
+            return StateMapPanel(map: StateMap.phaseRing(), live: live)
+        }
+        return StateMap.load(named: "statemap_2d.json").map { StateMapPanel(map: $0, live: live) }
     }
 
-    private init(map: StateMap) {
+    private init(map: StateMap, live: (() -> [Double]?)? = nil) {
         mapView = StateMapView(map: map)
+        mapView.live = live
         let rect = NSRect(x: 0, y: 0, width: 300, height: 320)
         super.init(contentRect: rect,
                    styleMask: [.titled, .closable, .utilityWindow, .nonactivatingPanel],
@@ -67,6 +76,19 @@ struct StateMap: Decodable {
         return try? JSONDecoder().decode(StateMap.self, from: data)
     }
 
+    /// The honest map for a phase-conditioned cyclic creature: its state IS a
+    /// point on a circle. Display-only (steer() ignores method "ring").
+    static func phaseRing() -> StateMap {
+        var pts: [[Double]] = []
+        for i in 0..<96 {
+            let a = 2.0 * Double.pi * Double(i) / 96.0
+            pts.append([0.5 + 0.38 * cos(a), 0.5 + 0.38 * sin(a)])
+        }
+        return StateMap(method: "ring", points: pts,
+                        z: Array(repeating: [0.0], count: pts.count),
+                        anchors: ["cycle": [0.5, 0.5]])
+    }
+
     /// Two-island map for flag creatures: labeled clusters and the road between.
     static func islands(_ states: [(String, String)]) -> StateMap {
         var pts: [[Double]] = []
@@ -97,10 +119,44 @@ final class StateMapView: NSView {
     private let map: StateMap
     private var cursor = CGPoint(x: 0.5, y: 0.5)
     private var lastWrite = Date.distantPast
+    /// Live creature position: [x, y] map coords, or a z vector to kNN-project.
+    var live: (() -> [Double]?)?
+    private var liveTimer: Timer?
 
     init(map: StateMap) {
         self.map = map
         super.init(frame: .zero)
+        liveTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) {
+            [weak self] t in
+            guard let self else { t.invalidate(); return }
+            if self.live != nil { self.needsDisplay = true }
+        }
+    }
+
+    deinit { liveTimer?.invalidate() }
+
+    /// Where the creature IS right now, in normalized map coordinates.
+    private func livePoint() -> [Double]? {
+        guard let v = live?() else { return nil }
+        if v.count == 2 { return v }
+        // z vector: inverse of steer() — kNN in z-space, blend the 2D positions.
+        var dists: [(Double, Int)] = []
+        for (i, z) in map.z.enumerated() {
+            var d = 0.0
+            for j in 0..<min(z.count, v.count) { d += (z[j] - v[j]) * (z[j] - v[j]) }
+            dists.append((d, i))
+        }
+        dists.sort { $0.0 < $1.0 }
+        let k = min(8, dists.count)
+        guard k > 0 else { return nil }
+        var x = 0.0, y = 0.0, total = 0.0
+        for j in 0..<k {
+            let w = 1.0 / (dists[j].0 + 1e-6)
+            x += map.points[dists[j].1][0] * w
+            y += map.points[dists[j].1][1] * w
+            total += w
+        }
+        return [x / total, y / total]
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }
@@ -125,6 +181,16 @@ final class StateMapView: NSView {
             NSColor(calibratedRed: 0.85, green: 0.47, blue: 0.34, alpha: 1).setFill()
             NSBezierPath(ovalIn: NSRect(x: pt.x - 3, y: pt.y - 3, width: 6, height: 6)).fill()
             (name as NSString).draw(at: NSPoint(x: pt.x + 5, y: pt.y - 5), withAttributes: labelAttrs)
+        }
+
+        if let lp = livePoint() {
+            let pt = place(lp, in: inset)
+            // the creature's actual position: green, pulsing
+            let phase = 0.5 + 0.5 * sin(Date().timeIntervalSince1970 * 4)
+            NSColor(calibratedRed: 0.35, green: 0.9, blue: 0.55, alpha: 0.35 + 0.3 * phase).setFill()
+            NSBezierPath(ovalIn: NSRect(x: pt.x - 8, y: pt.y - 8, width: 16, height: 16)).fill()
+            NSColor(calibratedRed: 0.35, green: 0.95, blue: 0.55, alpha: 1).setFill()
+            NSBezierPath(ovalIn: NSRect(x: pt.x - 4, y: pt.y - 4, width: 8, height: 8)).fill()
         }
 
         let cpt = place([Double(cursor.x), Double(cursor.y)], in: inset)
@@ -155,6 +221,7 @@ final class StateMapView: NSView {
 
     /// kNN (k=8) inverse-distance-weighted blend of the neighbors' z vectors.
     private func steer() {
+        guard map.method != "ring" else { return }   // phase ring is display-only
         guard Date().timeIntervalSince(lastWrite) > 0.2 else { return }
         lastWrite = Date()
         let cx = Double(cursor.x), cy = Double(cursor.y)

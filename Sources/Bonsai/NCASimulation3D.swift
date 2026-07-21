@@ -33,6 +33,8 @@ final class NCASimulation3D {
     private var zCurrent: [Float] = []
     var zTarget: [Float] = []
     var condProvider: ((UInt32) -> (Float, Float, Float, Float))?
+    /// Current phase angle for cyclic creatures (radians; the explorer's live dot).
+    var currentTheta: Float { Float(stepCounter) * LainBehavior.omega }
     /// Camera orbit angle (radians); the view layer animates this.
     var azimuth: Float = 0
     var elevation: Float = 0.35

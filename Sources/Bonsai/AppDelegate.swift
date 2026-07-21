@@ -190,8 +190,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showStateMap() {
-        if stateMapPanel == nil { stateMapPanel = StateMapPanel.make(for: currentCreature) }
+        if stateMapPanel == nil {
+            stateMapPanel = StateMapPanel.make(for: currentCreature, live: liveState())
+        }
         stateMapPanel?.makeKeyAndOrderFront(nil)
+    }
+
+    /// The creature's current position for the explorer's live dot.
+    private func liveState() -> (() -> [Double]?)? {
+        if currentCreature?.volumetric == true {
+            return { [weak self] in
+                guard let theta = self?.sim3D?.currentTheta else { return nil }
+                let a = Double(theta)
+                return [0.5 + 0.38 * cos(a), 0.5 + 0.38 * sin(a)]
+            }
+        }
+        if let b = behavior as? StateBehavior {
+            // islands geometry: calm at x=0.25, rage at x=0.75; show the transit
+            return { [weak b] in b.map { [0.25 + 0.5 * Double($0.currentRage), 0.5] } }
+        }
+        if let s = sim, s.zdim > 0 {
+            return { [weak s] in s.map { $0.zTarget.map(Double.init) } }
+        }
+        return nil
     }
 
     @objc private func quit() { NSApp.terminate(nil) }
