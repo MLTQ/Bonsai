@@ -200,6 +200,13 @@ def main():
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument("--batch", type=int, default=BATCH)
     ap.add_argument("--pool", type=int, default=POOL_SIZE)
+    ap.add_argument("--lr-scale", type=float, default=1.0,
+                    help="multiply both LR groups (base 2e-3, film 2e-4); lower "
+                         "when resuming a run that already annealed")
+    ap.add_argument("--milestones", type=int, nargs="*", default=[10000, 22000],
+                    help="LR decay iterations. When RESUMING, shift these by the "
+                         "iterations already completed so the schedule continues "
+                         "as if uninterrupted instead of restarting from scratch.")
     ap.add_argument("--init", default=None,
                     help="warm start from NC3C (cyclic) or NC3M weights. NC3C rows "
                          "are ch*4+3 wide (sin,cos,behavior); the behavior column "
@@ -234,6 +241,15 @@ def main():
             b1 = np.fromfile(f, dtype="<f4", count=hidden)
             w2 = np.fromfile(f, dtype="<f4", count=ch * hidden).reshape(ch, hidden)
             b2 = np.fromfile(f, dtype="<f4", count=ch)
+            fw = fb = None
+            if magic == b"NC3M":
+                # RESUMING a manifold: FiLM is the mood machinery itself. Zeroing
+                # it here would silently discard every iteration of mood learning
+                # (it did, for 90 seconds, before this was caught).
+                fw = np.fromfile(f, dtype="<f4",
+                                 count=2 * hidden * _zd).reshape(2 * hidden, _zd)
+                fb = np.fromfile(f, dtype="<f4", count=2 * hidden)
+                assert fb.size == 2 * hidden, "NC3M film block truncated"
         assert ch == CH and hidden == HIDDEN, f"shape mismatch {ch}/{hidden}"
         keep = CH * 4 + 2                      # perception + sin + cos
         model.w1.weight.data.copy_(
@@ -241,16 +257,27 @@ def main():
         model.w1.bias.data.copy_(torch.from_numpy(b1).to(device))
         model.w2.weight.data.copy_(torch.from_numpy(w2).to(device)[..., None, None, None])
         model.w2.bias.data.copy_(torch.from_numpy(b2).to(device))
-        nn.init.zeros_(model.film.weight)      # start EXACTLY as the parent
-        nn.init.zeros_(model.film.bias)
-        print(f"warm-started from {args.init} ({magic.decode()}); film zeroed", flush=True)
+        if fw is not None:
+            assert _zd == ZDIM, f"zdim mismatch: checkpoint {_zd}, model {ZDIM}"
+            model.film.weight.data.copy_(torch.from_numpy(fw).to(device))
+            model.film.bias.data.copy_(torch.from_numpy(fb).to(device))
+            note = f"film RESTORED (|W|={np.abs(fw).mean():.5f}) — manifold resume"
+        else:
+            # NC3C parent has no FiLM; zeroing makes iteration 0 behave exactly
+            # like the cyclic creature, which is the lineage recipe.
+            nn.init.zeros_(model.film.weight)
+            nn.init.zeros_(model.film.bias)
+            note = "film zeroed — starts as the cyclic parent"
+        print(f"warm-started from {args.init} ({magic.decode()}); {note}", flush=True)
     model.fused = args.fused
     base_params = [p for n, p in model.named_parameters() if not n.startswith("film")]
     opt = torch.optim.Adam([
-        {"params": base_params, "lr": 2e-3},
-        {"params": model.film.parameters(), "lr": 2e-4},
+        {"params": base_params, "lr": 2e-3 * args.lr_scale},
+        {"params": model.film.parameters(), "lr": 2e-4 * args.lr_scale},
     ])
-    sched = torch.optim.lr_scheduler.MultiStepLR(opt, milestones=[10000, 22000], gamma=0.3)
+    sched = torch.optim.lr_scheduler.MultiStepLR(
+        opt, milestones=[m for m in args.milestones if m > 0], gamma=0.3)
+    print(f"lr scale {args.lr_scale}, milestones {args.milestones}", flush=True)
 
     pool = make_seed(POOL_SIZE, device)
     pool_theta = torch.rand(POOL_SIZE, device=device) * 2 * np.pi

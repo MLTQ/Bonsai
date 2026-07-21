@@ -124,7 +124,7 @@ by contrast, is trivial on the Mac.
 Python trains; Metal runs. They agree byte-for-byte on: perception ordering
 (identity, sobelX, sobelY[, sobelZ] interleaved per channel), zero padding,
 alive mask = pre AND post maxpool(alpha) > 0.1, per-cell stochastic fire,
-state clamp ±8, and the flat weight formats (NCA1/2/3, NC3D/NC3C — see
+state clamp ±8, and the flat weight formats (NCA1/2/3/4, NCAP, NC3D/NC3C — see
 `NCAWeights.swift`). If you change any of these in one place, change them in
 both, and re-verify with a render-test before believing anything else.
 

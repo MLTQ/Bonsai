@@ -1,5 +1,34 @@
 # Future Work (parked, not scoped)
 
+## Explicit momentum / clockless cycle (active, 2026-07-21)
+
+The first implementation rung is now in place. `training/momentum_nca.py`
+defines `NCA4`: 16 position/state channels followed by 16 matched velocities.
+The learned head emits 16 forces and each cell advances with damped symplectic
+Euler (`v = 0.95*v + fire*f; u = u+v`). Fire remains per-cell and gates force,
+not integration. Both halves remain under the existing ±8 state clamp and life
+mask.
+
+`training/train_autonomous.py` is the intended A/B harness. Both treatments
+drop the donor's phase inputs and keep its behavior flag; `--integrator
+residual` reproduces the old NCA2 baseline, while the default `momentum`
+transplants the residual rule, lifts donor pool states with a one-step
+finite-difference velocity, and exports NCA4. The Swift loader, state buffers,
+and generated Metal kernel run NCA4 without changing legacy format behavior.
+
+Run matched seeds and output paths rather than overwriting one treatment:
+
+```sh
+cd training
+python3 train_autonomous.py --integrator residual --out ../weights/shoggoth_auto_residual.nca
+python3 train_autonomous.py --integrator momentum --out ../weights/shoggoth_auto_momentum.nca
+```
+
+The decision metric is not endpoint MSE alone: compare cycle sharpness, phase
+coverage/reversals, and long free-run phase drift. Triton support is deliberately
+deferred until this eager 2D A/B shows that explicit velocity beats the residual
+baseline.
+
 ## Negative result: the blur is not undertraining (2026-07-20)
 
 Max's read on the H100 sweep was that the arms "look simply undertrained". Arm A

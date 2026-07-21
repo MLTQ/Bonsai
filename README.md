@@ -64,10 +64,18 @@ the target. We started there and kept going:
    mood) come from one generated image per state; the metamorphosis between
    them is pure learned dynamics. (`training/train_states.py`)
 
+6. **Explicit inertia (experimental).** `NCA4` lifts each cell's 16 learned
+   state channels into matched position/velocity pairs. The rule predicts
+   forces, velocity decays by a configurable factor, and position advances
+   from that persistent velocity. `training/train_autonomous.py` uses this as
+   the default treatment in a clockless-cycle A/B against the old residual
+   update; the Swift/Metal runtime can load and run its checkpoints directly.
+   (`training/momentum_nca.py`)
+
 The research artifacts live alongside the code: a working-draft paper
 (`paper/`), including honest negative results (what happens when you remove
-the phase clock naively), and ongoing experiments (currently: oscillation via
-*heteroclinic cycling* — two unstable poses instead of any clock at all).
+the phase clock naively), and ongoing experiments (currently: explicit
+momentum and oscillation via *heteroclinic cycling*).
 
 ## The menagerie
 

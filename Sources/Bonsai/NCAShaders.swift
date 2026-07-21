@@ -10,13 +10,17 @@
 /// ordering [identity, sobelX, sobelY] interleaved per channel, sobel / 8,
 /// cross-correlation with zero padding, per-cell stochastic fire mask, and life
 /// mask = alive(pre) AND alive(post) where alive is maxpool3x3(alpha) > 0.1.
-func ncaMetalSource(cond: Int, hidden: Int = 128, useFilm: Bool = false, npool: Int = 0) -> String {
+func ncaMetalSource(cond: Int, hidden: Int = 128, useFilm: Bool = false, npool: Int = 0,
+                    stateChannels: Int = 16, positionChannels: Int = 16) -> String {
     """
     #include <metal_stdlib>
     using namespace metal;
 
-    constant int CH = 16;
-    constant int PCH = 48;
+    constant int CH = \(stateChannels);
+    constant int POSITION_CH = \(positionChannels);
+    constant bool USE_MOMENTUM = \(stateChannels != positionChannels);
+    constant int OUTPUT_CH = USE_MOMENTUM ? POSITION_CH : CH;
+    constant int PCH = CH * 3;
     constant int COND = \(cond);
     constant int NPOOL = \(npool);  // globally-broadcast feedback channels (NCAP)
     constant int PIN = PCH + COND + NPOOL;   // w1 input width
@@ -39,6 +43,7 @@ func ncaMetalSource(cond: Int, hidden: Int = 128, useFilm: Bool = false, npool: 
         int   style;    // render: 0 = plain, 1 = CRT scanlines
         int   flipX;    // render: mirror horizontally (creature facing)
         int   crisp;    // render: 1 = bilinear + alpha remap (sharp silhouette)
+        float momentumDecay;  // NCA4 velocity retention; ignored by residual formats
     };
 
     inline float cellCh(const device float *s, int x, int y, int c, int W, int H) {
@@ -83,7 +88,7 @@ func ncaMetalSource(cond: Int, hidden: Int = 128, useFilm: Bool = false, npool: 
         const device float *w1 = weights;
         const device float *b1 = w1 + HIDDEN * PIN;
         const device float *w2 = b1 + HIDDEN;
-        const device float *b2 = w2 + CH * HIDDEN;
+        const device float *b2 = w2 + OUTPUT_CH * HIDDEN;
 
         float hidden[HIDDEN];
         for (int h = 0; h < HIDDEN; h++) {
@@ -96,12 +101,21 @@ func ncaMetalSource(cond: Int, hidden: Int = 128, useFilm: Bool = false, npool: 
 
         int base = (y * W + x) * CH;
         bool fire = rand01(gid.x, gid.y, u.step) <= u.fireRate;
-        for (int c = 0; c < CH; c++) {
+        for (int c = 0; c < OUTPUT_CH; c++) {
             float acc = b2[c];
             const device float *row = w2 + c * HIDDEN;
             for (int h = 0; h < HIDDEN; h++) acc += row[h] * hidden[h];
-            // +-8 state bound matches training; inert for healthy dynamics
-            dst[base + c] = clamp(src[base + c] + (fire ? acc : 0.0f), -8.0f, 8.0f);
+            if (USE_MOMENTUM) {
+                // Symplectic Euler: force is stochastic, but stored velocity keeps
+                // advancing and damping on every cell step.
+                float velocity = u.momentumDecay * src[base + POSITION_CH + c]
+                               + (fire ? acc : 0.0f);
+                dst[base + c] = clamp(src[base + c] + velocity, -8.0f, 8.0f);
+                dst[base + POSITION_CH + c] = clamp(velocity, -8.0f, 8.0f);
+            } else {
+                // +-8 state bound matches training; inert for healthy dynamics
+                dst[base + c] = clamp(src[base + c] + (fire ? acc : 0.0f), -8.0f, 8.0f);
+            }
         }
 
         if (u.damageActive != 0) {

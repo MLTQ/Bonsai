@@ -1,13 +1,13 @@
 # NCAWeights.swift
 
 ## Purpose
-Loader for `.nca` binary weight files (NCA1 from train_nca.py, NCA2 from train_cyclic.py) plus weights-directory resolution. Keeps all file-format knowledge in one place on the Swift side.
+Loader for legacy residual, pooled, manifold, volumetric, and NCA4 momentum `.nca` binaries plus weights-directory resolution. Keeps all file-format knowledge in one place on the Swift side.
 
 ## Components
 
 ### `NCAWeights`
-- **Does**: Parses header (magic NCA1/NCA2/NCA3, shape, cond/zdim, fire rate), the flat float32 weight block, and (NCA3) the FiLM matrices
-- **Rationale**: Weights kept as one flat array because the GPU consumes them as a single buffer with offsets computed in the shader. `cond` determines w1 row width (48+cond; NCA3 fixes cond=2 for sin/cos phase); `hidden` is now parsed, not assumed 128 (NCA3 uses 192); FiLM (`filmW`, `filmB`) stays CPU-side — see NCASimulation
+- **Does**: Parses the format-specific header, dynamic state/output shapes, flat float32 weight block, and optional FiLM matrices
+- **Rationale**: Weights remain one flat array because the GPU consumes them with offsets computed in its generated shader. NCA4 records 32 state channels, 16 position/output channels, and momentum decay; legacy formats remain 16-channel residual systems
 
 ### `weightsDir` / `defaultPath`
 - **Does**: Finds the weights directory ($BONSAI_WEIGHTS_DIR → ./weights → repo-relative → bundled Resources) / legacy bonsai.nca convenience
@@ -16,7 +16,10 @@ Loader for `.nca` binary weight files (NCA1 from train_nca.py, NCA2 from train_c
 
 | Dependent | Expects | Breaking changes |
 |-----------|---------|------------------|
-| `NCASimulation.swift` | `flat` ordered w1,b1,w2,b2; `cond`; `channels=16`, `hidden=128` | Order, shape constants |
+| `NCASimulation.swift` | `flat` ordered w1,b1,w2,b2; dynamic `stateChannels` / `positionChannels`; integrator parameters | Order, shape fields |
 | `Creature.swift` | `weightsDir()` | Search-order changes |
 | `AppDelegate.swift`, `RenderTest.swift` | `load(from:)` throws descriptive errors | Signatures |
-| `training/*.py` | Byte-level format agreement (both NCA1 and NCA2) | Any header/layout change must be mirrored |
+| `training/*.py` | Byte-level format agreement for all emitted magic values, including NCA4 | Any header/layout change must be mirrored |
+
+## Notes
+- Header-length checks are format-specific so malformed files fail as `truncated` before any unaligned scalar read.

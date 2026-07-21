@@ -24,6 +24,7 @@ final class NCASimulation {
     private var poolBuffer: MTLBuffer
 
     private var fireRate: Float
+    private var momentumDecay: Float
     private var stepCounter: UInt32 = 0
     private var pendingDamage: (x: Float, y: Float, radius: Float)?
 
@@ -35,6 +36,10 @@ final class NCASimulation {
     let zdim: Int
     /// Pooled feedback channels (NCAP). When > 0, nca_pool runs before every step.
     let npool: Int
+    /// Physical state width and its position/output prefix. They differ only for
+    /// NCA4, whose remaining channels are matched velocities.
+    let stateChannelCount: Int
+    let positionChannelCount: Int
     private var filmMatrix: [Float] = []   // (2*hidden, zdim) row-major + bias (2*hidden)
     private var zCurrent: [Float] = []
     /// Desired latent point; the simulation eases toward it (~2%/step) so moods morph.
@@ -66,6 +71,7 @@ final class NCASimulation {
         var style: Int32
         var flipX: Int32
         var crisp: Int32
+        var momentumDecay: Float
     }
 
     init?(device: MTLDevice, weights: NCAWeights, gridWidth: Int = 64, gridHeight: Int = 64) {
@@ -73,10 +79,13 @@ final class NCASimulation {
         self.gridWidth = gridWidth
         self.gridHeight = gridHeight
         self.fireRate = weights.fireRate
+        self.momentumDecay = weights.momentumDecay
         self.condCount = weights.cond
         self.hiddenCount = weights.hidden
         self.zdim = weights.zdim
         self.npool = weights.npool
+        self.stateChannelCount = weights.stateChannels
+        self.positionChannelCount = weights.positionChannels
         self.filmMatrix = weights.film
         self.zCurrent = [Float](repeating: 0.5, count: weights.zdim)
         self.zTarget = self.zCurrent
@@ -86,7 +95,9 @@ final class NCASimulation {
 
         guard let library = try? device.makeLibrary(
                   source: ncaMetalSource(cond: weights.cond, hidden: weights.hidden,
-                                         useFilm: weights.zdim > 0, npool: weights.npool),
+                                         useFilm: weights.zdim > 0, npool: weights.npool,
+                                         stateChannels: weights.stateChannels,
+                                         positionChannels: weights.positionChannels),
                   options: nil),
               let stepFn = library.makeFunction(name: "nca_step"),
               let lifeFn = library.makeFunction(name: "nca_life"),
@@ -102,7 +113,7 @@ final class NCASimulation {
         renderPipeline = renderPS
         poolPipeline = poolPS
 
-        let stateBytes = gridWidth * gridHeight * NCAWeights.channels * MemoryLayout<Float>.size
+        let stateBytes = gridWidth * gridHeight * stateChannelCount * MemoryLayout<Float>.size
         guard let a = device.makeBuffer(length: stateBytes, options: .storageModeShared),
               let b = device.makeBuffer(length: stateBytes, options: .storageModeShared),
               let c = device.makeBuffer(length: stateBytes, options: .storageModeShared),
@@ -148,12 +159,14 @@ final class NCASimulation {
     @discardableResult
     func updateWeights(_ weights: NCAWeights) -> Bool {
         guard weights.cond == condCount, weights.hidden == hiddenCount, weights.zdim == zdim,
-              weights.npool == npool,
+              weights.npool == npool, weights.stateChannels == stateChannelCount,
+              weights.positionChannels == positionChannelCount,
               let w = device.makeBuffer(bytes: weights.flat,
                                         length: weights.flat.count * MemoryLayout<Float>.size,
                                         options: .storageModeShared) else { return false }
         weightsBuffer = w
         fireRate = weights.fireRate
+        momentumDecay = weights.momentumDecay
         filmMatrix = weights.film
         refreshFilm()
         return true
@@ -164,10 +177,11 @@ final class NCASimulation {
         let sx = x ?? gridWidth / 2
         let sy = y ?? gridHeight / 2
         let ptr = cur.contents().bindMemory(to: Float.self,
-                                            capacity: gridWidth * gridHeight * NCAWeights.channels)
-        for i in 0..<(gridWidth * gridHeight * NCAWeights.channels) { ptr[i] = 0 }
-        let base = (sy * gridWidth + sx) * NCAWeights.channels
-        for c in 3..<NCAWeights.channels { ptr[base + c] = 1.0 }
+                                            capacity: gridWidth * gridHeight * stateChannelCount)
+        for i in 0..<(gridWidth * gridHeight * stateChannelCount) { ptr[i] = 0 }
+        let base = (sy * gridWidth + sx) * stateChannelCount
+        // Position alpha/hidden channels start alive. NCA4 velocities remain zero.
+        for c in 3..<positionChannelCount { ptr[base + c] = 1.0 }
     }
 
     /// Queue a circular damage zone; applied during the next step (the NCA then regrows).
@@ -184,7 +198,7 @@ final class NCASimulation {
                         damageX: d?.x ?? 0, damageY: d?.y ?? 0, damageRadius: d?.radius ?? 0,
                         cond0: c.0, cond1: c.1, cond2: c.2, cond3: c.3,
                         style: renderStyle, flipX: flipX ? 1 : 0,
-                        crisp: crispEdges ? 1 : 0)
+                        crisp: crispEdges ? 1 : 0, momentumDecay: momentumDecay)
     }
 
     private func dispatch(_ encoder: MTLComputeCommandEncoder, _ pipeline: MTLComputePipelineState,
@@ -266,11 +280,11 @@ final class NCASimulation {
     /// Copy the current RGBA (first 4 channels) off the GPU — used by the headless render test.
     func readRGBA() -> [Float] {
         queue.makeCommandBuffer().map { $0.commit(); $0.waitUntilCompleted() }
-        let count = gridWidth * gridHeight * NCAWeights.channels
+        let count = gridWidth * gridHeight * stateChannelCount
         let ptr = cur.contents().bindMemory(to: Float.self, capacity: count)
         var out = [Float](repeating: 0, count: gridWidth * gridHeight * 4)
         for i in 0..<(gridWidth * gridHeight) {
-            for c in 0..<4 { out[i * 4 + c] = ptr[i * NCAWeights.channels + c] }
+            for c in 0..<4 { out[i * 4 + c] = ptr[i * stateChannelCount + c] }
         }
         return out
     }

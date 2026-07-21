@@ -1,6 +1,6 @@
 import Foundation
 
-/// Parsed contents of a `.nca` weights file. Three formats, one loader:
+/// Parsed contents of a `.nca` weights file. Multiple formats, one loader:
 /// NCA1 (train_nca.py):     magic, i32 ch, i32 hidden, f32 fire, w1[h][ch*3], b1, w2[ch][h], b2
 /// NCA2 (train_cyclic.py):  + i32 cond after hidden; w1 rows widen to ch*3+cond
 /// NCA3 (train_manifold.py): i32 ch, hidden, zdim; fire; w1[h][ch*3+2] (sin/cos phase),
@@ -10,11 +10,22 @@ import Foundation
 ///                           Breaks strict locality: the extra inputs are a spatial
 ///                           reduction over the whole grid, so the runtime must run
 ///                           nca_pool before every nca_step.
+/// NCA4 (momentum_nca.py):   i32 stateCh, hidden, cond, positionCh; f32 fire, decay;
+///                           w1[h][stateCh*3+cond], b1, w2[positionCh][h], b2.
+///                           Requires stateCh == 2*positionCh; the second half stores
+///                           velocities and the learned head emits forces.
 struct NCAWeights {
     static let channels = 16
 
+    /// Total channels stored per cell (32 for NCA4, 16 for legacy formats).
+    let stateChannels: Int
+    /// Channels advanced as positions. NCA4 has a matched velocity half; legacy
+    /// formats set this equal to stateChannels and use residual updates.
+    let positionChannels: Int
     let hidden: Int
     let fireRate: Float
+    /// Velocity retention per step (NCA4 only; zero for residual formats).
+    let momentumDecay: Float
     /// Conditioning channels appended to perception (NCA2: cond; NCA3: 2 = sin/cos).
     let cond: Int
     /// FiLM latent dimension (NCA3 only; 0 otherwise).
@@ -42,7 +53,7 @@ struct NCAWeights {
         var description: String {
             switch self {
             case .unreadable(let p): return "cannot read weights file: \(p)"
-            case .badMagic: return "not an NCA1/NCA2/NCA3/NCAP weights file"
+            case .badMagic: return "not a supported NCA weights file"
             case .shapeMismatch(let s): return "unsupported shape: \(s)"
             case .truncated: return "weights file is truncated"
             }
@@ -53,11 +64,19 @@ struct NCAWeights {
         guard let data = FileManager.default.contents(atPath: path) else {
             throw LoadError.unreadable(path)
         }
-        guard data.count > 20 else { throw LoadError.badMagic }
+        guard data.count >= 4 else { throw LoadError.badMagic }
         let magic = String(decoding: data.prefix(4), as: UTF8.self)
-        guard ["NCA1", "NCA2", "NCA3", "NCAP", "NC3D", "NC3C", "NC3M"].contains(magic) else {
+        guard ["NCA1", "NCA2", "NCA3", "NCA4", "NCAP", "NC3D", "NC3C", "NC3M"].contains(magic) else {
             throw LoadError.badMagic
         }
+        let headerBytes: Int
+        switch magic {
+        case "NCA4": headerBytes = 28
+        case "NCAP": headerBytes = 24
+        case "NCA2", "NCA3", "NC3C", "NC3M": headerBytes = 20
+        default: headerBytes = 16
+        }
+        guard data.count >= headerBytes else { throw LoadError.truncated }
         let spatialDims = magic.hasPrefix("NC3") ? 3 : 2
 
         func i32(_ off: Int) -> Int {
@@ -68,12 +87,24 @@ struct NCAWeights {
         }
 
         let ch = i32(4), hidden = i32(8)
-        guard ch == channels, hidden > 0, hidden <= 1024 else {
+        guard hidden > 0, hidden <= 1024 else {
+            throw LoadError.shapeMismatch("hidden=\(hidden)")
+        }
+        if magic != "NCA4" && ch != channels {
             throw LoadError.shapeMismatch("ch=\(ch) hidden=\(hidden)")
         }
         var offset = 12
-        var cond = 0, zdim = 0, npool = 0
+        var cond = 0, zdim = 0, npool = 0, positionChannels = ch
+        var momentumDecay: Float = 0
         switch magic {
+        case "NCA4":
+            cond = i32(12)
+            positionChannels = i32(16)
+            guard (0...4).contains(cond) else { throw LoadError.shapeMismatch("cond=\(cond)") }
+            guard positionChannels >= 4, ch == 2 * positionChannels, ch <= 64 else {
+                throw LoadError.shapeMismatch("NCA4 stateCh=\(ch) positionCh=\(positionChannels)")
+            }
+            offset = 20
         case "NCAP":
             cond = i32(12)
             npool = i32(16)
@@ -94,9 +125,17 @@ struct NCAWeights {
         }
         let fireRate = f32(offset)
         offset += 4
+        if magic == "NCA4" {
+            momentumDecay = f32(offset)
+            guard momentumDecay >= 0, momentumDecay <= 1 else {
+                throw LoadError.shapeMismatch("momentumDecay=\(momentumDecay)")
+            }
+            offset += 4
+        }
 
-        let w1In = channels * (spatialDims == 3 ? 4 : 3) + cond + npool
-        let baseCount = hidden * w1In + hidden + channels * hidden + channels
+        let w1In = ch * (spatialDims == 3 ? 4 : 3) + cond + npool
+        let outputChannels = magic == "NCA4" ? positionChannels : ch
+        let baseCount = hidden * w1In + hidden + outputChannels * hidden + outputChannels
         let filmCount = zdim > 0 ? (2 * hidden * zdim + 2 * hidden) : 0
         guard data.count >= offset + (baseCount + filmCount) * 4 else { throw LoadError.truncated }
 
@@ -111,8 +150,9 @@ struct NCAWeights {
             return out
         }
 
-        return NCAWeights(hidden: hidden, fireRate: fireRate, cond: cond, zdim: zdim,
-                          npool: npool, spatialDims: spatialDims,
+        return NCAWeights(stateChannels: ch, positionChannels: positionChannels,
+                          hidden: hidden, fireRate: fireRate, momentumDecay: momentumDecay,
+                          cond: cond, zdim: zdim, npool: npool, spatialDims: spatialDims,
                           flat: floats(offset, baseCount),
                           film: floats(offset + baseCount * 4, filmCount))
     }
