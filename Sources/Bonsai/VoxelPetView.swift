@@ -4,7 +4,8 @@ import QuartzCore
 
 /// The volumetric pet's window into the world: raymarched CAMetalLayer with a
 /// slowly orbiting camera. Scroll to spin, drag to move the window, click to
-/// blast a spherical crater into the creature (it heals from the inside out).
+/// blast a spherical crater into the creature (it heals from the inside out),
+/// option-click to sprinkle a treat (nutrient noise it integrates or digests).
 /// For cyclic 3D creatures (cond >= 3) it also runs idle/walk episodes and
 /// glides the window along the Dock rail while walking.
 final class VoxelPetView: NSView {
@@ -181,7 +182,13 @@ final class VoxelPetView: NSView {
         let ndcX = Float(p.x / bounds.width - 0.5)
         let ndcY = Float(p.y / bounds.height - 0.5)  // view is bottom-left origin; camera up matches
         if let hit = sim.pick(ndcX: ndcX, ndcY: ndcY) {
-            sim.damage(atVoxelX: hit.x, y: hit.y, z: hit.z, radius: 4.5)
+            // wound size scales with the body, same rule as training damage
+            let scale = Float(sim.grid) / 32.0
+            if event.modifierFlags.contains(.option) {
+                sim.feed(atVoxelX: hit.x, y: hit.y, z: hit.z, radius: 4.0 * scale)
+            } else {
+                sim.damage(atVoxelX: hit.x, y: hit.y, z: hit.z, radius: 4.0 * scale)
+            }
         }
     }
 

@@ -159,6 +159,32 @@ final class NCASimulation3D {
         for c in 3..<NCAWeights.channels { ptr[base + c] = 1.0 }
     }
 
+    /// The treat interaction: sprinkle nutrient noise around a point — fresh
+    /// live matter (alpha + randomized hidden state) in a loose cloud, tinted
+    /// warm so the sprinkle is visible for a moment before the automaton
+    /// integrates or digests it. What it does with a treat is its own business;
+    /// that's the point. CPU-writes the shared state buffer, same convention
+    /// as reseed().
+    func feed(atVoxelX x: Float, y: Float, z: Float, radius: Float) {
+        let count = grid * grid * grid * NCAWeights.channels
+        let ptr = cur.contents().bindMemory(to: Float.self, capacity: count)
+        let r = Int(radius.rounded(.up))
+        let cx = Int(x), cy = Int(y), cz = Int(z)
+        for dz in -r...r { for dy in -r...r { for dx in -r...r {
+            let d2 = Float(dx * dx + dy * dy + dz * dz)
+            guard d2 <= radius * radius,
+                  Float.random(in: 0...1) < 0.35 else { continue }   // a sprinkle, not a slab
+            let vx = cx + dx, vy = cy + dy, vz = cz + dz
+            guard vx >= 0, vy >= 0, vz >= 0, vx < grid, vy < grid, vz < grid else { continue }
+            let base = ((vz * grid + vy) * grid + vx) * NCAWeights.channels
+            ptr[base + 0] = 0.95; ptr[base + 1] = 0.78; ptr[base + 2] = 0.35  // treat gold
+            ptr[base + 3] = max(ptr[base + 3], Float.random(in: 0.3...0.8))
+            for c in 4..<NCAWeights.channels {
+                ptr[base + c] += Float.random(in: -0.5...0.5)
+            }
+        } } }
+    }
+
     func damage(atVoxelX x: Float, y: Float, z: Float, radius: Float) {
         pendingDamage = (x, y, z, radius)
     }
