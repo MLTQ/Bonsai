@@ -162,15 +162,20 @@ def export(model, path):
     print(f"  exported {path}", flush=True)
 
 
-def save_preview(model, device, path):
+def save_preview(model, device, path, anchors=None, names=None):
+    """Render a few named moods. The anchor set is per-creature: Claudeguy has
+    no 'sleep'/'walk'/'manic', so preview names must come from whatever anchors
+    this run actually trains on."""
     from PIL import Image
-    from manifold_shoggoth3d import ANCHORS
-
-    names = ["sleep", "walk", "manic"]
+    if anchors is None:
+        from manifold_shoggoth3d import ANCHORS as anchors
+    if names is None:
+        preferred = ["sleep", "walk", "manic", "melancholy", "delight", "mindblown"]
+        names = [n for n in preferred if n in anchors][:3] or list(anchors)[:3]
     rows = []
     with torch.no_grad():
         for name in names:
-            z = torch.tensor([ANCHORS[name]], dtype=torch.float32, device=device)
+            z = torch.tensor([anchors[name]], dtype=torch.float32, device=device)
             x = make_seed(1, device)
             theta = torch.zeros(1, device=device)
             x = model.rollout(x, theta, z, 300)
@@ -200,6 +205,9 @@ def main():
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument("--batch", type=int, default=BATCH)
     ap.add_argument("--pool", type=int, default=POOL_SIZE)
+    ap.add_argument("--anchors-module", default="manifold_shoggoth3d",
+                    help="module supplying ANCHORS for preview renders "
+                         "(e.g. manifold_claudeguy3d)")
     ap.add_argument("--lr-scale", type=float, default=1.0,
                     help="multiply both LR groups (base 2e-3, film 2e-4); lower "
                          "when resuming a run that already annealed")
@@ -217,6 +225,11 @@ def main():
     args = ap.parse_args()
 
     BATCH, POOL_SIZE = args.batch, args.pool
+    try:
+        preview_anchors = __import__(args.anchors_module).ANCHORS
+    except Exception as e:            # previews are a nicety, never fatal
+        print(f"preview anchors unavailable ({e}); previews disabled", flush=True)
+        preview_anchors = None
     device = torch.device(args.device)
     torch.manual_seed(0)
     np.random.seed(0)
@@ -338,7 +351,9 @@ def main():
             print(f"iter {it:6d}  loss {loss.item():.5f}  {it/(time.time()-t0):.2f} it/s", flush=True)
         if it % 1000 == 0 or it == args.iters:
             export(model, args.out)
-            save_preview(model, device, "preview_manifold3d.png")
+            if preview_anchors is not None:
+                save_preview(model, device, "preview_manifold3d.png",
+                             anchors=preview_anchors)
         if it % 5000 == 0:
             export(model, f"{args.out}.it{it}")
 
