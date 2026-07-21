@@ -20,6 +20,9 @@ struct Creature {
     var stateMapName: String? = nil
     /// Flag-creature states for the panel: (display label, control anchor to send).
     var flagStates: [(String, String)]? = nil
+    /// Anchors json for manifold creatures (autopilot + control). Defaults to the
+    /// shoggoth's for backward compatibility with Mk. IV.
+    var anchorsName: String = "anchors_shoggoth3d.json"
 
     static let registry: [Creature] = [
         Creature(name: "Bonsai", fileName: "bonsai.nca", renderStyle: 0, makeBehavior: { nil }),
@@ -36,8 +39,12 @@ struct Creature {
                  makeBehavior: { nil }, volumetric: true, stateMapName: "statemap_3d.json"),
         Creature(name: "Shoggoth 64", fileName: "shoggoth3d_64.nca", renderStyle: 0,
                  makeBehavior: { nil }, volumetric: true, grid3D: 64),
-        Creature(name: "Claudeguy (training)", fileName: "claudeguy.nca", renderStyle: 0,
+        Creature(name: "Claudeguy", fileName: "claudeguy.nca", renderStyle: 0,
                  makeBehavior: { nil }, volumetric: true, grid3D: 64),
+        Creature(name: "Claudeguy (soul training)", fileName: "claudeguy_manifold.nca",
+                 renderStyle: 0, makeBehavior: { nil }, volumetric: true, grid3D: 64,
+                 stateMapName: "statemap_claudeguy.json",
+                 anchorsName: "anchors_claudeguy3d.json"),
         // Frozen mid-metamorphosis (~4.5k iters of shoggoth->Claudeguy): Max
         // loved the nebulous look, so this checkpoint is a creature forever.
         Creature(name: "Claudeguy Nebula", fileName: "claudeguy_nebula.nca", renderStyle: 0,

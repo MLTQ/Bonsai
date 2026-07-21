@@ -22,7 +22,7 @@ final class VoxelPetView: NSView {
     private var nextEpisode = Date().addingTimeInterval(.random(in: 10...25))
 
     // Manifold (zdim > 0): anchor autopilot + control.json steering, 3D edition.
-    private let anchorFile3D = AnchorFile.load(named: "anchors_shoggoth3d.json")
+    private let anchorFile3D: AnchorFile?
     private var autopilotPausedUntil = Date.distantPast
     private var nextDrift = Date().addingTimeInterval(.random(in: 20...60))
     private var lastControlCheck = Date.distantPast
@@ -32,9 +32,11 @@ final class VoxelPetView: NSView {
     /// Idle camera drift (radians/tick). The creature always turns to be seen.
     var orbitRate: Float = 0.006
 
-    init(simulation: NCASimulation3D, cyclic: Bool, frame: NSRect) {
+    init(simulation: NCASimulation3D, cyclic: Bool, frame: NSRect,
+         anchorsName: String = "anchors_shoggoth3d.json") {
         self.sim = simulation
         self.cyclic = cyclic
+        self.anchorFile3D = AnchorFile.load(named: anchorsName)
         super.init(frame: frame)
         wantsLayer = true
         if simulation.condCount >= 2 {

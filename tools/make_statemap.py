@@ -19,9 +19,11 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "training"))
 import argparse as _ap
 _pre = _ap.ArgumentParser(add_help=False)
-_pre.add_argument("--creature", default="3d", choices=["2d", "3d"])
+_pre.add_argument("--creature", default="3d", choices=["2d", "3d", "claudeguy"])
 _known, _ = _pre.parse_known_args()
-if _known.creature == "3d":
+if _known.creature == "claudeguy":
+    from manifold_claudeguy3d import ANCHORS, ZDIM  # noqa: E402
+elif _known.creature == "3d":
     from manifold_shoggoth3d import ANCHORS, ZDIM  # noqa: E402
 else:
     from manifold_shoggoth import ANCHORS, ZDIM  # noqa: E402
@@ -47,7 +49,7 @@ def build_samples(rng):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--creature", default="3d", choices=["2d", "3d"])
+    ap.add_argument("--creature", default="3d", choices=["2d", "3d", "claudeguy"])
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
     if args.out is None:

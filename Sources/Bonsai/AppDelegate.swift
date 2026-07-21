@@ -60,7 +60,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.sim = nil
             self.behavior = nil
             window.contentView = VoxelPetView(simulation: sim3D,
-                                              cyclic: weights.cond >= 3, frame: frame)
+                                              cyclic: weights.cond >= 3, frame: frame,
+                                              anchorsName: creature.anchorsName)
         } else {
             guard let sim = NCASimulation(device: device, weights: weights,
                                           gridWidth: creature.grid2D,
@@ -199,6 +200,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The creature's current position for the explorer's live dot.
     private func liveState() -> (() -> [Double]?)? {
         if currentCreature?.volumetric == true {
+            if let s3 = sim3D, s3.zdim > 0 {
+                // manifold creature: project current z into the map via kNN
+                return { [weak s3] in s3.map { $0.zTarget.map(Double.init) } }
+            }
             return { [weak self] in
                 guard let theta = self?.sim3D?.currentTheta else { return nil }
                 let a = Double(theta)
