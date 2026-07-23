@@ -1,0 +1,57 @@
+{
+  "valid": false,
+  "reason": "contact order did not swap: delta0=-0.046, delta2=-0.041",
+  "measurements": [
+    {
+      "gold": {
+        "count": 9703,
+        "x": 0.5450193668624824
+      },
+      "teal": {
+        "count": 14263,
+        "x": 0.5909073812778985
+      }
+    },
+    {
+      "gold": {
+        "count": 10786,
+        "x": 0.5532975326812535
+      },
+      "teal": {
+        "count": 14341,
+        "x": 0.585181726925133
+      }
+    },
+    {
+      "gold": {
+        "count": 9987,
+        "x": 0.5495451378458663
+      },
+      "teal": {
+        "count": 14612,
+        "x": 0.5904970194303768
+      }
+    },
+    {
+      "gold": {
+        "count": 9953,
+        "x": 0.550858828159014
+      },
+      "teal": {
+        "count": 16450,
+        "x": 0.5701219763171226
+      }
+    }
+  ],
+  "pose_order": [
+    "contact_right",
+    "passing_left",
+    "contact_left",
+    "passing_right"
+  ],
+  "seed": 37,
+  "strength": 0.82,
+  "steps": 36,
+  "guidance": 6.0,
+  "control_scale": 1.15
+}

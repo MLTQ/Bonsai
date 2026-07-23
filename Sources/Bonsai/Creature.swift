@@ -8,6 +8,8 @@ struct Creature {
     let fileName: String
     let renderStyle: Int32
     let makeBehavior: () -> CreatureBehavior?
+    /// Hard-routed pose/edge transport model using the dedicated FX2D runtime.
+    var fused2D: Bool = false
     /// Volumetric creatures run on NCASimulation3D + VoxelPetView.
     var volumetric: Bool = false
     /// Seed voxel for volumetric creatures (must match the trainer's seed position).
@@ -16,6 +18,9 @@ struct Creature {
     var grid3D: Int = 32
     /// Planar grid edge for 2D creatures (64 unless the creature was trained wider).
     var grid2D: Int = 64
+    /// Optional mature NCS1 state used instead of a seed when the experiment was
+    /// trained only on already-grown states.
+    var initialStateName: String? = nil
     /// State-map json (weights dir) for the explorer panel, if this creature has a manifold.
     var stateMapName: String? = nil
     /// Flag-creature states for the panel: (display label, control anchor to send).
@@ -27,8 +32,27 @@ struct Creature {
     static let registry: [Creature] = [
         Creature(name: "Bonsai", fileName: "bonsai.nca", renderStyle: 0, makeBehavior: { nil }),
         Creature(name: "Lain", fileName: "lain.nca", renderStyle: 1, makeBehavior: { LainBehavior() }),
+        // Reaction-only 128² authored-cycle experiment. It was trained from
+        // mature states, so the matching NCS1 snapshot is part of the creature.
+        Creature(name: "Mega Man · Mature Test", fileName: "megaman_walk_mature.nca",
+                 renderStyle: 0, makeBehavior: { PhaseOnlyCyclicBehavior() },
+                 grid2D: 128, initialStateName: "megaman_walk_mature.ncs"),
+        Creature(name: "Mega Man · Fused Experts", fileName: "megaman_fused_f2.fx2d",
+                 renderStyle: 0, makeBehavior: { nil }, fused2D: true,
+                 grid2D: 128, initialStateName: "megaman_fused_f2.ncs"),
         Creature(name: "Shoggoth", fileName: "shoggoth.nca", renderStyle: 0,
                  makeBehavior: { ShoggothBehavior() }),
+        // Clockless NCA4 experiment: cond0 selects the trained walk behavior;
+        // phase must come entirely from the cell's explicit velocity state.
+        Creature(name: "Shoggoth · Momentum", fileName: "shoggoth_auto_momentum.nca",
+                 renderStyle: 0, makeBehavior: { ClocklessShoggothBehavior() },
+                 initialStateName: "shoggoth_auto_momentum.ncs"),
+        // NCA5 follow-up: RGBA stays residual while only hidden channels carry
+        // explicit velocity, avoiding the NCA4 color/alpha ringing failure.
+        Creature(name: "Shoggoth · Hidden Momentum",
+                 fileName: "shoggoth_auto_hidden_momentum.nca",
+                 renderStyle: 0, makeBehavior: { ClocklessShoggothBehavior() },
+                 initialStateName: "shoggoth_auto_hidden_momentum.ncs"),
         Creature(name: "Manifold", fileName: "shoggoth_manifold.nca", renderStyle: 0,
                  makeBehavior: { ManifoldBehavior() }, stateMapName: "statemap_2d.json"),
         Creature(name: "Bonsai 3D", fileName: "bonsai3d.nca", renderStyle: 0,
@@ -123,6 +147,27 @@ final class LainBehavior: CreatureBehavior {
             nextGlitch = now.addingTimeInterval(.random(in: 40...120))
         }
     }
+}
+
+/// Clockless NCA4/NCA5 preview. The one conditioning channel selects the walking
+/// behavior and deliberately supplies no phase; oscillation must remain internal.
+final class ClocklessShoggothBehavior: CreatureBehavior {
+    func cond(step: UInt32) -> (Float, Float, Float, Float) {
+        (1.0, 0.0, 0.0, 0.0)
+    }
+
+    func tick(sim: NCASimulation, window: NSWindow?) {}
+}
+
+/// Phase-only behavior for one-behavior NCA2 experiments. The third condition
+/// remains zero; setting it to one would select an untrained behavior index.
+final class PhaseOnlyCyclicBehavior: CreatureBehavior {
+    func cond(step: UInt32) -> (Float, Float, Float, Float) {
+        let theta = Float(step) * LainBehavior.omega
+        return (sin(theta), cos(theta), 0.0, 0.0)
+    }
+
+    func tick(sim: NCASimulation, window: NSWindow?) {}
 }
 
 /// Named points in the behavior manifold, exported by training/manifold_shoggoth.py.

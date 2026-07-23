@@ -1,0 +1,80 @@
+{
+  "source": "/Users/max/Code/Bonsai/sheets/megaman",
+  "pose_order": [
+    "flight_extension",
+    "support",
+    "compression",
+    "flight_recovery"
+  ],
+  "frames": [
+    {
+      "name": "flight_extension",
+      "box": [
+        282,
+        258,
+        376,
+        364
+      ],
+      "anchor": [
+        330,
+        284
+      ]
+    },
+    {
+      "name": "support",
+      "box": [
+        378,
+        258,
+        450,
+        364
+      ],
+      "anchor": [
+        411,
+        283
+      ]
+    },
+    {
+      "name": "compression",
+      "box": [
+        442,
+        258,
+        531,
+        364
+      ],
+      "anchor": [
+        479,
+        285
+      ]
+    },
+    {
+      "name": "flight_recovery",
+      "box": [
+        536,
+        258,
+        625,
+        364
+      ],
+      "anchor": [
+        578,
+        282
+      ]
+    }
+  ],
+  "adjacent_mse": [
+    0.07317563891410828,
+    0.04901661351323128,
+    0.07043497264385223,
+    0.06175330653786659
+  ],
+  "opposite_mse": [
+    0.06814589351415634,
+    0.07245197147130966
+  ],
+  "alpha_pixels": [
+    4360,
+    3397,
+    3575,
+    4361
+  ],
+  "note": "numeric uniqueness is not a semantic gait acceptance test"
+}

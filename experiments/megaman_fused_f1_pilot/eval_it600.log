@@ -1,0 +1,169 @@
+{
+  "checkpoint": "/Users/max/Code/Bonsai/weights/megaman_fused_f1_pilot/model_it600.pt",
+  "iteration": 600,
+  "stage": "edge",
+  "architecture": "fused",
+  "state_interface": "canonical",
+  "cycles": 2,
+  "trials": 2,
+  "bridge": {
+    "visible_mse": {
+      "mean": 0.029905085335485637,
+      "min": 0.01043025217950344,
+      "max": 0.045477837324142456
+    },
+    "dice": {
+      "mean": 0.8059077933430672,
+      "min": 0.7070767879486084,
+      "max": 0.9409048557281494
+    },
+    "boundary_f1": {
+      "mean": 0.696801483631134,
+      "min": 0.502388060092926,
+      "max": 0.9289491176605225
+    },
+    "sharpness_ratio": {
+      "mean": 0.49011123925447464,
+      "min": 0.31059730052948,
+      "max": 0.7370588779449463
+    },
+    "support_ratio": {
+      "mean": 0.8157430961728096,
+      "min": 0.6990302801132202,
+      "max": 1.0074955224990845
+    },
+    "nonadjacent_leakage": {
+      "mean": 0.1948378998786211,
+      "min": 0.10184346139431,
+      "max": 0.31205159425735474
+    },
+    "part_phase_dispersion": {
+      "mean": 0.29069337993860245,
+      "min": 0.0,
+      "max": 0.6464465856552124
+    },
+    "part_phase_error": {
+      "mean": 0.1953125,
+      "min": 0.0,
+      "max": 0.5
+    },
+    "state_abs_max": {
+      "mean": 2.669314831495285,
+      "min": 1.775528907775879,
+      "max": 4.413556098937988
+    }
+  },
+  "handoff": {
+    "visible_mse": {
+      "mean": 0.02920144936069846,
+      "min": 0.010220597498118877,
+      "max": 0.04527903348207474
+    },
+    "dice": {
+      "mean": 0.804863691329956,
+      "min": 0.714927077293396,
+      "max": 0.9321151971817017
+    },
+    "boundary_f1": {
+      "mean": 0.6946398019790649,
+      "min": 0.5202429890632629,
+      "max": 0.8963557481765747
+    },
+    "sharpness_ratio": {
+      "mean": 0.4028232805430889,
+      "min": 0.26657313108444214,
+      "max": 0.5993146896362305
+    },
+    "support_ratio": {
+      "mean": 0.8214991390705109,
+      "min": 0.7205301523208618,
+      "max": 0.9985264539718628
+    },
+    "nonadjacent_leakage": {
+      "mean": 0.19621038623154163,
+      "min": 0.10244815051555634,
+      "max": 0.31664642691612244
+    },
+    "part_phase_dispersion": {
+      "mean": 0.29069337993860245,
+      "min": 0.0,
+      "max": 0.6464465856552124
+    },
+    "part_phase_error": {
+      "mean": 0.1953125,
+      "min": 0.0,
+      "max": 0.5
+    },
+    "state_abs_max": {
+      "mean": 2.4441852271556854,
+      "min": 1.6444813013076782,
+      "max": 4.4666428565979
+    }
+  },
+  "intermediate": {
+    "sharpness_ratio": {
+      "mean": 0.5518394419923425,
+      "min": 0.30929672718048096,
+      "max": 0.9196251630783081
+    },
+    "support_band_violation": {
+      "mean": 0.0546961518630269,
+      "min": 0.0,
+      "max": 0.17761139571666718
+    },
+    "nonadjacent_leakage": {
+      "mean": 0.20495431311428547,
+      "min": 0.055302269756793976,
+      "max": 0.4201974868774414
+    },
+    "part_phase_dispersion": {
+      "mean": 0.36896361503750086,
+      "min": 0.0,
+      "max": 0.9999999403953552
+    },
+    "part_phase_error": {
+      "mean": 0.2783203125,
+      "min": 0.0,
+      "max": 0.5625
+    },
+    "max_slot_usage": {
+      "mean": 0.7659685015678406,
+      "min": 0.5624241232872009,
+      "max": 0.9276471734046936
+    },
+    "slot_entropy": {
+      "mean": 0.5680402610450983,
+      "min": 0.202037513256073,
+      "max": 0.9118258953094482
+    },
+    "flow_rms": {
+      "mean": 0.3583351164124906,
+      "min": 0.17131845653057098,
+      "max": 0.47179973125457764
+    }
+  },
+  "cycle_visible_drift": {
+    "mean": 0.03697539493441582,
+    "min": 0.030988022685050964,
+    "max": 0.04296276718378067
+  },
+  "cycle_hidden_drift": {
+    "mean": 0.045666830614209175,
+    "min": 0.042200081050395966,
+    "max": 0.049133580178022385
+  },
+  "acceptance": {
+    "bridge_dice": false,
+    "handoff_dice": false,
+    "handoff_boundary": false,
+    "handoff_sharpness": false,
+    "intermediate_sharpness": false,
+    "nonadjacent_leakage": false,
+    "phase_dispersion": false,
+    "cycle_drift": false,
+    "bounded_state": false,
+    "numeric_pass": false
+  }
+}
+preview -> experiments/megaman_fused_f1_pilot/eval_it600.png
+metrics -> experiments/megaman_fused_f1_pilot/eval_it600.json

@@ -14,6 +14,10 @@ import Foundation
 ///                           w1[h][stateCh*3+cond], b1, w2[positionCh][h], b2.
 ///                           Requires stateCh == 2*positionCh; the second half stores
 ///                           velocities and the learned head emits forces.
+/// NCA5 (hidden_momentum_nca.py): i32 stateCh, hidden, cond, positionCh,
+///                           visibleCh, momentumCh; f32 fire, decay; same flat weights.
+///                           RGBA stays residual; hidden positions have matched
+///                           velocities appended after all position channels.
 struct NCAWeights {
     static let channels = 16
 
@@ -22,6 +26,9 @@ struct NCAWeights {
     /// Channels advanced as positions. NCA4 has a matched velocity half; legacy
     /// formats set this equal to stateChannels and use residual updates.
     let positionChannels: Int
+    /// Trailing position channels with matched appended velocities.
+    /// NCA4: all positions; NCA5: hidden positions; residual formats: none.
+    let momentumChannels: Int
     let hidden: Int
     let fireRate: Float
     /// Velocity retention per step (NCA4 only; zero for residual formats).
@@ -66,11 +73,12 @@ struct NCAWeights {
         }
         guard data.count >= 4 else { throw LoadError.badMagic }
         let magic = String(decoding: data.prefix(4), as: UTF8.self)
-        guard ["NCA1", "NCA2", "NCA3", "NCA4", "NCAP", "NC3D", "NC3C", "NC3M"].contains(magic) else {
+        guard ["NCA1", "NCA2", "NCA3", "NCA4", "NCA5", "NCAP", "NC3D", "NC3C", "NC3M"].contains(magic) else {
             throw LoadError.badMagic
         }
         let headerBytes: Int
         switch magic {
+        case "NCA5": headerBytes = 36
         case "NCA4": headerBytes = 28
         case "NCAP": headerBytes = 24
         case "NCA2", "NCA3", "NC3C", "NC3M": headerBytes = 20
@@ -90,11 +98,12 @@ struct NCAWeights {
         guard hidden > 0, hidden <= 1024 else {
             throw LoadError.shapeMismatch("hidden=\(hidden)")
         }
-        if magic != "NCA4" && ch != channels {
+        if magic != "NCA4" && magic != "NCA5" && ch != channels {
             throw LoadError.shapeMismatch("ch=\(ch) hidden=\(hidden)")
         }
         var offset = 12
         var cond = 0, zdim = 0, npool = 0, positionChannels = ch
+        var momentumChannels = 0
         var momentumDecay: Float = 0
         switch magic {
         case "NCA4":
@@ -104,7 +113,24 @@ struct NCAWeights {
             guard positionChannels >= 4, ch == 2 * positionChannels, ch <= 64 else {
                 throw LoadError.shapeMismatch("NCA4 stateCh=\(ch) positionCh=\(positionChannels)")
             }
+            momentumChannels = positionChannels
             offset = 20
+        case "NCA5":
+            cond = i32(12)
+            positionChannels = i32(16)
+            let visibleChannels = i32(20)
+            momentumChannels = i32(24)
+            guard (0...4).contains(cond) else { throw LoadError.shapeMismatch("cond=\(cond)") }
+            guard visibleChannels == 4,
+                  momentumChannels > 0,
+                  positionChannels == visibleChannels + momentumChannels,
+                  ch == positionChannels + momentumChannels,
+                  ch <= 64 else {
+                throw LoadError.shapeMismatch(
+                    "NCA5 stateCh=\(ch) positionCh=\(positionChannels) " +
+                    "visibleCh=\(visibleChannels) momentumCh=\(momentumChannels)")
+            }
+            offset = 28
         case "NCAP":
             cond = i32(12)
             npool = i32(16)
@@ -125,7 +151,7 @@ struct NCAWeights {
         }
         let fireRate = f32(offset)
         offset += 4
-        if magic == "NCA4" {
+        if magic == "NCA4" || magic == "NCA5" {
             momentumDecay = f32(offset)
             guard momentumDecay >= 0, momentumDecay <= 1 else {
                 throw LoadError.shapeMismatch("momentumDecay=\(momentumDecay)")
@@ -134,7 +160,7 @@ struct NCAWeights {
         }
 
         let w1In = ch * (spatialDims == 3 ? 4 : 3) + cond + npool
-        let outputChannels = magic == "NCA4" ? positionChannels : ch
+        let outputChannels = positionChannels
         let baseCount = hidden * w1In + hidden + outputChannels * hidden + outputChannels
         let filmCount = zdim > 0 ? (2 * hidden * zdim + 2 * hidden) : 0
         guard data.count >= offset + (baseCount + filmCount) * 4 else { throw LoadError.truncated }
@@ -151,6 +177,7 @@ struct NCAWeights {
         }
 
         return NCAWeights(stateChannels: ch, positionChannels: positionChannels,
+                          momentumChannels: momentumChannels,
                           hidden: hidden, fireRate: fireRate, momentumDecay: momentumDecay,
                           cond: cond, zdim: zdim, npool: npool, spatialDims: spatialDims,
                           flat: floats(offset, baseCount),

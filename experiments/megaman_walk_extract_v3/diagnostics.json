@@ -1,0 +1,80 @@
+{
+  "source": "/Users/max/Code/Bonsai/sheets/megaman",
+  "pose_order": [
+    "airborne_contact",
+    "support_passing",
+    "opposite_stride",
+    "loop_return"
+  ],
+  "frames": [
+    {
+      "name": "airborne_contact",
+      "box": [
+        282,
+        258,
+        376,
+        364
+      ],
+      "anchor": [
+        330,
+        284
+      ]
+    },
+    {
+      "name": "support_passing",
+      "box": [
+        382,
+        258,
+        442,
+        364
+      ],
+      "anchor": [
+        411,
+        283
+      ]
+    },
+    {
+      "name": "opposite_stride",
+      "box": [
+        442,
+        258,
+        531,
+        364
+      ],
+      "anchor": [
+        479,
+        285
+      ]
+    },
+    {
+      "name": "loop_return",
+      "box": [
+        536,
+        258,
+        625,
+        364
+      ],
+      "anchor": [
+        578,
+        282
+      ]
+    }
+  ],
+  "adjacent_mse": [
+    0.07240520417690277,
+    0.04675248637795448,
+    0.07043497264385223,
+    0.06175330653786659
+  ],
+  "opposite_mse": [
+    0.06814589351415634,
+    0.06808305531740189
+  ],
+  "alpha_pixels": [
+    4360,
+    3077,
+    3575,
+    4361
+  ],
+  "note": "numeric uniqueness is not a semantic gait acceptance test"
+}

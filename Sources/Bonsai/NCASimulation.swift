@@ -36,10 +36,11 @@ final class NCASimulation {
     let zdim: Int
     /// Pooled feedback channels (NCAP). When > 0, nca_pool runs before every step.
     let npool: Int
-    /// Physical state width and its position/output prefix. They differ only for
-    /// NCA4, whose remaining channels are matched velocities.
+    /// Physical state width, its position/output prefix, and the trailing subset
+    /// of positions with matched velocity registers (NCA4/NCA5).
     let stateChannelCount: Int
     let positionChannelCount: Int
+    let momentumChannelCount: Int
     private var filmMatrix: [Float] = []   // (2*hidden, zdim) row-major + bias (2*hidden)
     private var zCurrent: [Float] = []
     /// Desired latent point; the simulation eases toward it (~2%/step) so moods morph.
@@ -86,6 +87,7 @@ final class NCASimulation {
         self.npool = weights.npool
         self.stateChannelCount = weights.stateChannels
         self.positionChannelCount = weights.positionChannels
+        self.momentumChannelCount = weights.momentumChannels
         self.filmMatrix = weights.film
         self.zCurrent = [Float](repeating: 0.5, count: weights.zdim)
         self.zTarget = self.zCurrent
@@ -97,7 +99,8 @@ final class NCASimulation {
                   source: ncaMetalSource(cond: weights.cond, hidden: weights.hidden,
                                          useFilm: weights.zdim > 0, npool: weights.npool,
                                          stateChannels: weights.stateChannels,
-                                         positionChannels: weights.positionChannels),
+                                         positionChannels: weights.positionChannels,
+                                         momentumChannels: weights.momentumChannels),
                   options: nil),
               let stepFn = library.makeFunction(name: "nca_step"),
               let lifeFn = library.makeFunction(name: "nca_life"),
@@ -161,6 +164,7 @@ final class NCASimulation {
         guard weights.cond == condCount, weights.hidden == hiddenCount, weights.zdim == zdim,
               weights.npool == npool, weights.stateChannels == stateChannelCount,
               weights.positionChannels == positionChannelCount,
+              weights.momentumChannels == momentumChannelCount,
               let w = device.makeBuffer(bytes: weights.flat,
                                         length: weights.flat.count * MemoryLayout<Float>.size,
                                         options: .storageModeShared) else { return false }
@@ -180,8 +184,34 @@ final class NCASimulation {
                                             capacity: gridWidth * gridHeight * stateChannelCount)
         for i in 0..<(gridWidth * gridHeight * stateChannelCount) { ptr[i] = 0 }
         let base = (sy * gridWidth + sx) * stateChannelCount
-        // Position alpha/hidden channels start alive. NCA4 velocities remain zero.
+        // Position alpha/hidden channels start alive. Momentum velocities remain zero.
         for c in 3..<positionChannelCount { ptr[base + c] = 1.0 }
+    }
+
+    /// Replace the live grid with an NCS1 state snapshot. Snapshot floats are
+    /// cell-major (y, x, channel), matching the Metal buffer layout exactly.
+    @discardableResult
+    func loadState(from path: String) -> Bool {
+        guard let data = FileManager.default.contents(atPath: path), data.count >= 16,
+              String(decoding: data.prefix(4), as: UTF8.self) == "NCS1"
+        else { return false }
+        func i32(_ offset: Int) -> Int {
+            Int(data.withUnsafeBytes {
+                $0.loadUnaligned(fromByteOffset: offset, as: Int32.self)
+            })
+        }
+        let width = i32(4), height = i32(8), channels = i32(12)
+        let count = gridWidth * gridHeight * stateChannelCount
+        guard width == gridWidth, height == gridHeight, channels == stateChannelCount,
+              data.count == 16 + count * MemoryLayout<Float>.size
+        else { return false }
+        data.withUnsafeBytes { raw in
+            cur.contents().copyMemory(from: raw.baseAddress!.advanced(by: 16),
+                                      byteCount: count * MemoryLayout<Float>.size)
+        }
+        stepCounter = 0
+        pendingDamage = nil
+        return true
     }
 
     /// Queue a circular damage zone; applied during the next step (the NCA then regrows).

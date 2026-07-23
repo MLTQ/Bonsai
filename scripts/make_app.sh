@@ -15,6 +15,10 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/Bonsai "$APP/Contents/MacOS/Bonsai"
 cp weights/*.nca "$APP/Contents/Resources/" 2>/dev/null || {
     echo "!! no weights in weights/ — train first"; exit 1; }
+# Hard-routed fused expert banks use a separate deployment format/runtime.
+cp weights/*.fx2d "$APP/Contents/Resources/" 2>/dev/null || true
+# Mature/canonical state snapshots for experiments trained from already-grown states.
+cp weights/*.ncs "$APP/Contents/Resources/" 2>/dev/null || true
 # statemaps + anchors: the explorer's fallback path loads statemap_2d.json from
 # the same directory as the weights — omitting these silently breaks the
 # State Space panel for every creature without flagStates.

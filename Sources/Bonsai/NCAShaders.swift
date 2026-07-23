@@ -11,15 +11,17 @@
 /// cross-correlation with zero padding, per-cell stochastic fire mask, and life
 /// mask = alive(pre) AND alive(post) where alive is maxpool3x3(alpha) > 0.1.
 func ncaMetalSource(cond: Int, hidden: Int = 128, useFilm: Bool = false, npool: Int = 0,
-                    stateChannels: Int = 16, positionChannels: Int = 16) -> String {
+                    stateChannels: Int = 16, positionChannels: Int = 16,
+                    momentumChannels: Int = 0) -> String {
     """
     #include <metal_stdlib>
     using namespace metal;
 
     constant int CH = \(stateChannels);
     constant int POSITION_CH = \(positionChannels);
-    constant bool USE_MOMENTUM = \(stateChannels != positionChannels);
-    constant int OUTPUT_CH = USE_MOMENTUM ? POSITION_CH : CH;
+    constant int MOMENTUM_CH = \(momentumChannels);
+    constant int RESIDUAL_CH = POSITION_CH - MOMENTUM_CH;
+    constant int OUTPUT_CH = POSITION_CH;
     constant int PCH = CH * 3;
     constant int COND = \(cond);
     constant int NPOOL = \(npool);  // globally-broadcast feedback channels (NCAP)
@@ -105,13 +107,15 @@ func ncaMetalSource(cond: Int, hidden: Int = 128, useFilm: Bool = false, npool: 
             float acc = b2[c];
             const device float *row = w2 + c * HIDDEN;
             for (int h = 0; h < HIDDEN; h++) acc += row[h] * hidden[h];
-            if (USE_MOMENTUM) {
+            if (c >= RESIDUAL_CH) {
                 // Symplectic Euler: force is stochastic, but stored velocity keeps
-                // advancing and damping on every cell step.
-                float velocity = u.momentumDecay * src[base + POSITION_CH + c]
+                // advancing and damping on every cell step. NCA4 applies this to
+                // every position channel; NCA5 applies it only to hidden channels.
+                int velocityChannel = POSITION_CH + (c - RESIDUAL_CH);
+                float velocity = u.momentumDecay * src[base + velocityChannel]
                                + (fire ? acc : 0.0f);
                 dst[base + c] = clamp(src[base + c] + velocity, -8.0f, 8.0f);
-                dst[base + POSITION_CH + c] = clamp(velocity, -8.0f, 8.0f);
+                dst[base + velocityChannel] = clamp(velocity, -8.0f, 8.0f);
             } else {
                 // +-8 state bound matches training; inert for healthy dynamics
                 dst[base + c] = clamp(src[base + c] + (fire ? acc : 0.0f), -8.0f, 8.0f);

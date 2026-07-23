@@ -9,7 +9,10 @@ let package = Package(
             name: "Bonsai",
             path: "Sources/Bonsai",
             exclude: ["AppDelegate.md", "Creature.md", "main.md", "NCAShaders.md",
-                      "NCASimulation.md", "NCAWeights.md", "PetView.md", "RenderTest.md"]
+                      "NCASimulation.md", "NCAWeights.md", "PetView.md", "RenderTest.md",
+                      "FusedNCAWeights.md", "FusedNCAShaders.md",
+                      "FusedNCASimulation.md", "FusedPetView.md",
+                      "FusedRenderTest.md", "StateMapPanel.md"]
         )
     ]
 )

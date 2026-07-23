@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var stateMapPanel: StateMapPanel?
     private var sim: NCASimulation?
+    private var fusedSim: FusedNCASimulation?
     private var sim3D: NCASimulation3D?
     private var behavior: CreatureBehavior?
     private var currentCreature: Creature?
@@ -40,8 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func load(creature: Creature) {
         guard let path = creature.path,
-              let device = MTLCreateSystemDefaultDevice(),
-              let weights = try? NCAWeights.load(from: path)
+              let device = MTLCreateSystemDefaultDevice()
         else {
             fatalErrorAlert("Failed to load creature '\(creature.name)'")
             return
@@ -49,7 +49,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let size = Self.windowSize
         let frame = NSRect(x: 0, y: 0, width: size, height: size)
 
-        if creature.volumetric {
+        if creature.fused2D {
+            guard let weights = try? FusedNCAWeights.load(from: path),
+                  let fused = FusedNCASimulation(device: device, weights: weights),
+                  let stateName = creature.initialStateName,
+                  let directory = NCAWeights.weightsDir(),
+                  fused.loadState(from: directory + "/" + stateName)
+            else {
+                fatalErrorAlert("Failed to init fused simulation for '\(creature.name)'")
+                return
+            }
+            fused.crispEdges = UserDefaults.standard.object(forKey: "crispEdges") as? Bool ?? true
+            self.fusedSim = fused
+            self.sim = nil
+            self.sim3D = nil
+            self.behavior = nil
+            window.contentView = FusedPetView(simulation: fused, frame: frame)
+        } else if creature.volumetric {
+            guard let weights = try? NCAWeights.load(from: path) else {
+                fatalErrorAlert("Failed to load weights for '\(creature.name)'")
+                return
+            }
             guard let sim3D = NCASimulation3D(device: device, weights: weights,
                                               grid: creature.grid3D,
                                               seed: creature.seed3D) else {
@@ -58,11 +78,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             self.sim3D = sim3D
             self.sim = nil
+            self.fusedSim = nil
             self.behavior = nil
             window.contentView = VoxelPetView(simulation: sim3D,
                                               cyclic: weights.cond >= 3, frame: frame,
                                               anchorsName: creature.anchorsName)
         } else {
+            guard let weights = try? NCAWeights.load(from: path) else {
+                fatalErrorAlert("Failed to load weights for '\(creature.name)'")
+                return
+            }
             guard let sim = NCASimulation(device: device, weights: weights,
                                           gridWidth: creature.grid2D,
                                           gridHeight: creature.grid2D) else {
@@ -71,6 +96,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             sim.renderStyle = creature.renderStyle
             sim.crispEdges = UserDefaults.standard.object(forKey: "crispEdges") as? Bool ?? true
+            if let stateName = creature.initialStateName {
+                guard let dir = NCAWeights.weightsDir(),
+                      sim.loadState(from: dir + "/" + stateName) else {
+                    fatalErrorAlert("Failed to load initial state for '\(creature.name)'")
+                    return
+                }
+            }
             let behavior = creature.makeBehavior()
             if let behavior {
                 sim.condProvider = { [weak behavior] step in
@@ -79,6 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             self.sim = sim
             self.sim3D = nil
+            self.fusedSim = nil
             self.behavior = behavior
             window.contentView = PetView(simulation: sim, behavior: behavior, frame: frame)
         }
@@ -168,17 +201,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let now = !(UserDefaults.standard.object(forKey: "crispEdges") as? Bool ?? true)
         UserDefaults.standard.set(now, forKey: "crispEdges")
         sim?.crispEdges = now
+        fusedSim?.crispEdges = now
         rebuildStatusMenu()
     }
 
     @objc private func reseed() {
         sim?.reseed()
+        fusedSim?.reseed()
         sim3D?.reseed()
     }
 
     @objc private func reloadWeights() {
-        guard let creature = currentCreature, let path = creature.path,
-              let weights = try? NCAWeights.load(from: path) else { return }
+        guard let creature = currentCreature, let path = creature.path else { return }
+        if creature.fused2D {
+            guard let weights = try? FusedNCAWeights.load(from: path) else { return }
+            if fusedSim?.updateWeights(weights) != true { load(creature: creature) }
+            return
+        }
+        guard let weights = try? NCAWeights.load(from: path) else { return }
         let ok = creature.volumetric ? sim3D?.updateWeights(weights) : sim?.updateWeights(weights)
         if ok != true {
             load(creature: creature)  // shape changed: rebuild

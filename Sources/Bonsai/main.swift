@@ -4,6 +4,11 @@ import AppKit
 // runs a headless growth rollout and writes a PNG (used to verify the Metal runtime).
 
 let args = CommandLine.arguments
+if args.count >= 6, args[1] == "--render-fused" {
+    let steps = Int(args[3]) ?? 32
+    exit(FusedRenderTest.run(
+        outputPath: args[2], steps: steps, weightsPath: args[4], statePath: args[5]))
+}
 if args.count >= 2, args[1] == "--render-test" {
     let out = args.count >= 3 ? args[2] : "render_test.png"
     let steps = args.count >= 4 ? Int(args[3]) ?? 300 : 300

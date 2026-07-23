@@ -1,0 +1,190 @@
+{
+  "checkpoint": "/Users/max/Code/Bonsai/weights/megaman_fused_f2_wide/model_it2200.pt",
+  "iteration": 2200,
+  "stage": "joint",
+  "architecture": "fused",
+  "state_interface": "canonical",
+  "cycles": 2,
+  "trials": 2,
+  "bridge": {
+    "visible_mse": {
+      "mean": 0.0006222349766176194,
+      "min": 0.00035872150328941643,
+      "max": 0.0011569664347916842
+    },
+    "dice": {
+      "mean": 0.9662014991044998,
+      "min": 0.9647104740142822,
+      "max": 0.9682682752609253
+    },
+    "boundary_f1": {
+      "mean": 0.9933203533291817,
+      "min": 0.9815430641174316,
+      "max": 1.0
+    },
+    "sharpness_ratio": {
+      "mean": 0.9462895616889,
+      "min": 0.8981603384017944,
+      "max": 0.9732435941696167
+    },
+    "rgb_gradient_error": {
+      "mean": 0.022474539000540972,
+      "min": 0.016392307355999947,
+      "max": 0.03192776069045067
+    },
+    "rgb_sharpness_ratio": {
+      "mean": 0.8991725593805313,
+      "min": 0.8399217128753662,
+      "max": 0.9419952630996704
+    },
+    "support_ratio": {
+      "mean": 0.9933238551020622,
+      "min": 0.9904710650444031,
+      "max": 0.9987326860427856
+    },
+    "nonadjacent_leakage": {
+      "mean": 0.004971471775206737,
+      "min": 0.0011649124789983034,
+      "max": 0.01214195042848587
+    },
+    "part_phase_dispersion": {
+      "mean": 0.0,
+      "min": 0.0,
+      "max": 0.0
+    },
+    "part_phase_error": {
+      "mean": 0.0,
+      "min": 0.0,
+      "max": 0.0
+    },
+    "state_abs_max": {
+      "mean": 1.5836971253156662,
+      "min": 1.38815438747406,
+      "max": 1.7742822170257568
+    }
+  },
+  "handoff": {
+    "visible_mse": {
+      "mean": 0.0004981364181730896,
+      "min": 0.0002606857742648572,
+      "max": 0.0009165231604129076
+    },
+    "dice": {
+      "mean": 0.9670336544513702,
+      "min": 0.9638217687606812,
+      "max": 0.9687138795852661
+    },
+    "boundary_f1": {
+      "mean": 0.9966566190123558,
+      "min": 0.9900438189506531,
+      "max": 1.0
+    },
+    "sharpness_ratio": {
+      "mean": 0.9394317418336868,
+      "min": 0.8961137533187866,
+      "max": 0.9649466276168823
+    },
+    "rgb_gradient_error": {
+      "mean": 0.020332446205429733,
+      "min": 0.01463913545012474,
+      "max": 0.028424806892871857
+    },
+    "rgb_sharpness_ratio": {
+      "mean": 0.8762247189879417,
+      "min": 0.821682333946228,
+      "max": 0.9126232862472534
+    },
+    "support_ratio": {
+      "mean": 0.9929942637681961,
+      "min": 0.9918397068977356,
+      "max": 0.9949045181274414
+    },
+    "nonadjacent_leakage": {
+      "mean": 0.004782176576554775,
+      "min": 0.0009189778938889503,
+      "max": 0.010156325995922089
+    },
+    "part_phase_dispersion": {
+      "mean": 0.0,
+      "min": 0.0,
+      "max": 0.0
+    },
+    "part_phase_error": {
+      "mean": 0.0,
+      "min": 0.0,
+      "max": 0.0
+    },
+    "state_abs_max": {
+      "mean": 1.3379787057638168,
+      "min": 1.2302286624908447,
+      "max": 1.457645297050476
+    }
+  },
+  "intermediate": {
+    "sharpness_ratio": {
+      "mean": 0.8701060619205236,
+      "min": 0.7140082716941833,
+      "max": 1.085400104522705
+    },
+    "support_band_violation": {
+      "mean": 0.0,
+      "min": 0.0,
+      "max": 0.0
+    },
+    "nonadjacent_leakage": {
+      "mean": 0.03467176943013328,
+      "min": 0.0011649124789983034,
+      "max": 0.09412107616662979
+    },
+    "part_phase_dispersion": {
+      "mean": 0.06018226779997349,
+      "min": 0.0,
+      "max": 0.2928932309150696
+    },
+    "part_phase_error": {
+      "mean": 0.150390625,
+      "min": 0.0,
+      "max": 0.3125
+    },
+    "max_slot_usage": {
+      "mean": 0.9041430670768023,
+      "min": 0.6441373825073242,
+      "max": 0.998468279838562
+    },
+    "slot_entropy": {
+      "mean": 0.0,
+      "min": -0.0,
+      "max": -0.0
+    },
+    "flow_rms": {
+      "mean": 0.1514102490618825,
+      "min": 0.1266830414533615,
+      "max": 0.18217869102954865
+    }
+  },
+  "cycle_visible_drift": {
+    "mean": 0.0004713153903139755,
+    "min": 0.00045882814447395504,
+    "max": 0.000483802636153996
+  },
+  "cycle_hidden_drift": {
+    "mean": 0.0023559951223433018,
+    "min": 0.0023536724038422108,
+    "max": 0.0023583178408443928
+  },
+  "acceptance": {
+    "bridge_dice": true,
+    "handoff_dice": true,
+    "handoff_boundary": true,
+    "handoff_sharpness": true,
+    "handoff_rgb_detail": false,
+    "intermediate_sharpness": true,
+    "nonadjacent_leakage": true,
+    "phase_dispersion": true,
+    "cycle_drift": true,
+    "bounded_state": true,
+    "numeric_pass": false
+  }
+}
+preview -> experiments/megaman_fused_f2_wide/eval_it2200_quick.png
+metrics -> experiments/megaman_fused_f2_wide/eval_it2200_quick.json

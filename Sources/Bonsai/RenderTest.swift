@@ -34,16 +34,25 @@ enum RenderTest {
             return nil
         }
         if weights.cond >= 2 {
-            // Phase-conditioned creature: run its cycle (behavior flag ON for NCA2).
+            // Phase-conditioned creature. Historical headless renders select
+            // behavior 1; one-behavior corpora override it with 0.
+            let behavior = Float(
+                ProcessInfo.processInfo.environment["BONSAI_BEHAVIOR"] ?? "1"
+            ) ?? 1
             sim.condProvider = { step in
                 let theta = Float(step) * LainBehavior.omega
-                return (sin(theta), cos(theta), 1.0, 0.0)
+                return (sin(theta), cos(theta), behavior, 0.0)
             }
         } else if weights.cond == 1 {
             // Single-flag creature (clockless or state-attractor). $BONSAI_STATE picks
             // the state for headless renders (default 1).
             let flag = Float(ProcessInfo.processInfo.environment["BONSAI_STATE"] ?? "1") ?? 1
             sim.condProvider = { _ in (flag, 0.0, 0.0, 0.0) }
+        }
+        if let statePath = ProcessInfo.processInfo.environment["BONSAI_INITIAL_STATE"],
+           !sim.loadState(from: statePath) {
+            FileHandle.standardError.write(Data("failed to load initial state from \(statePath)\n".utf8))
+            return nil
         }
         if weights.zdim > 0 {
             // Manifold creature: pick z via $BONSAI_ANCHOR (name) or $BONSAI_Z (csv).

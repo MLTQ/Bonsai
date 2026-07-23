@@ -6,8 +6,10 @@ Headless verification path: grows the NCA for N steps and writes a PNG, proving 
 ## Components
 
 ### `RenderTest.run(outputPath:steps:weightsPath:)`
-- **Does**: Load weights → simulate → `readRGBA()` → 4× nearest-upscale → PNG via ImageIO
+- **Does**: Load weights and optional `$BONSAI_INITIAL_STATE` NCS1 snapshot → simulate → `readRGBA()` → PNG
 - **Interacts with**: `NCAWeights`, `NCASimulation.readRGBA`; conditioned weights (cond ≥ 3) get a phase-advancing condProvider with the behavior flag on (`LainBehavior.omega`)
+- **Override**: `$BONSAI_BEHAVIOR=0` selects a one-behavior cyclic corpus such
+  as the Mega Man mature-state experiment; the historical default remains 1
 
 ### `RenderTest.runSequence(outDir:count:stride:weightsPath:)`
 - **Does**: Warm-up growth, then dumps a PNG every `stride` steps — the frames become verification GIFs of the animation cycle

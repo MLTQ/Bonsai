@@ -1,21 +1,21 @@
 # NCASimulation.swift
 
 ## Purpose
-GPU runtime for the neural cellular automaton: owns Metal state buffers, weights, and compute pipelines. It dispatches both legacy 16-channel residual formats and the 32-channel NCA4 position/velocity format.
+GPU runtime for the neural cellular automaton: owns Metal state buffers, weights, and compute pipelines. It dispatches legacy residual formats, 32-channel NCA4 full momentum, and 28-channel NCA5 hidden-only momentum.
 
 ## Components
 
 ### `NCASimulation`
 - **Does**: Holds grid state and advances the automaton; renders into drawable textures
 - **Interacts with**: `NCAWeights` (weight data), `ncaMetalSource` in `NCAShaders.swift` (compiled at init)
-- **Rationale**: Three-buffer rotation (`cur`/`tmp`/`next`) because the life mask reads pre- and post-update alpha from neighbors. State buffers use the loaded format's channel count; visible RGBA is always the first four position channels
+- **Rationale**: Three-buffer rotation (`cur`/`tmp`/`next`) because the life mask reads pre- and post-update alpha from neighbors. State buffers use the loaded state/position/momentum widths; visible RGBA is always the first four position channels
 
 ### `step(count:renderInto:)`
 - **Does**: Encodes N automaton steps (+optional render) in one command buffer
 - **Rationale**: Encoders in one command buffer execute serially on the GPU, so multiple steps per frame are cheap
 
-### `reseed` / `damage(atGridX:gridY:radius:)` / `updateWeights`
-- **Does**: Plant a fresh seed cell / queue a circular wound (applied next step) / hot-swap weights (returns false on cond-shape mismatch → caller rebuilds the sim)
+### `reseed` / `loadState(from:)` / `damage` / `updateWeights`
+- **Does**: Plant a fresh seed, load a shape-checked NCS1 mature-state snapshot, queue a circular wound, or hot-swap compatible weights
 - **Interacts with**: Called by `PetView` (interactions), `AppDelegate` (menu, weights watcher), `LainBehavior` (glitches)
 
 ### `condProvider` / `renderStyle` / `condCount` / `flipX`
@@ -35,8 +35,9 @@ GPU runtime for the neural cellular automaton: owns Metal state buffers, weights
 | Dependent | Expects | Breaking changes |
 |-----------|---------|------------------|
 | `PetView.swift` | `step(count:renderInto:)`, `damage`, `reseed`, `device`, `gridWidth/Height` | Signatures; must stay main-thread-callable |
-| `AppDelegate.swift` | failable `init(device:weights:...)`; `updateWeights` rejects cond/hidden/FiLM/pool/state-shape mismatches | Init and hot-reload behavior |
+| `AppDelegate.swift` | failable `init(device:weights:...)`; `updateWeights` rejects cond/hidden/FiLM/pool/state/momentum-shape mismatches | Init and hot-reload behavior |
 | `RenderTest.swift` | `readRGBA()` returns row-major RGBA floats | Channel order/layout |
+| NCS1 snapshot producers | Header is magic + width/height/channels i32; payload is cell-major little-endian float32 | Snapshot layout |
 
 ## Notes
-- `Uniforms` uses only 4-byte fields in declaration order so Swift matches Metal without manual padding. `momentumDecay` is ignored by residual shaders.
+- `Uniforms` uses only 4-byte fields in declaration order so Swift matches Metal without manual padding. `momentumDecay` is ignored when `momentumChannels == 0`.
